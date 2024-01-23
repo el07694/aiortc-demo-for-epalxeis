@@ -33,11 +33,15 @@ from pyngrok.conf import PyngrokConfig
 from pyngrok import conf
 
 from pygrabber.dshow_graph import FilterGraph
-
+import traceback
 
 #conf.set_default(PyngrokConfig(region="au", ngrok_path=os.path.abspath("ngrok.exe")))
-
+ngrok.set_auth_token("1kxaH4jyih9qTuyTBE0V6bzYbnq_nVaCNY5wwUriYY5oiLDr")
 import socket
+#ngrok.set_host_header("rewrite")
+#print(dir(conf.get_default()))
+
+from watchpoints import watch
 
 stream_offer = None
 pc = None
@@ -45,7 +49,6 @@ micTrack = None
 blackHole = None
 
 relay = None
-webcam = None
 
 ip_address = None
 
@@ -82,6 +85,7 @@ class Main:
 		self.emitter.client_1_web_camera_packet.connect(lambda pil_image:self.client_1_web_camera_packet(pil_image[0]))
 		self.emitter.client_2_web_camera_packet.connect(lambda pil_image:self.client_2_web_camera_packet(pil_image[0]))
 		self.emitter.client_3_web_camera_packet.connect(lambda pil_image:self.client_3_web_camera_packet(pil_image[0]))
+		self.emitter.hide_server_web_camera.connect(lambda:self.hide_server_web_camera())
 		self.emitter.start()		
 		
 		self.aiohttp_server = WebRtcServer(self.child_pipe,self.queue)
@@ -273,6 +277,10 @@ class Main:
 		qim = QtGui.QImage(data, im.size[0], im.size[1], QtGui.QImage.Format_ARGB32)
 		pixmap = QtGui.QPixmap.fromImage(qim)
 		return pixmap
+
+	def hide_server_web_camera(self):
+		self.ui.server_frame.hide()
+
 	
 	def closeEvent(self,event):
 		#try:
@@ -292,6 +300,8 @@ class Emitter(QThread):
 
 	call_3_offering = pyqtSignal(str,str)
 	call_3_status = pyqtSignal(str)
+	
+	hide_server_web_camera = pyqtSignal()
 
 
 	server_web_camera_packet = pyqtSignal(list)
@@ -326,6 +336,8 @@ class Emitter(QThread):
 				self.client_2_web_camera_packet.emit(data["pil_image"])
 			elif data["type"] == "client-3-web-camera-frame":
 				self.client_3_web_camera_packet.emit(data["pil_image"])	   
+			elif data["type"] == "hide_server_web_camera":
+				self.hide_server_web_camera.emit()
 
 class WebRtcServer(Process):
 	def __init__(self, to_emitter, from_mother):
@@ -342,7 +354,12 @@ class WebRtcServer(Process):
 		self.micTracks = []
 		self.blackHoles = []
 		
+		
 		self.videoTrack = None
+		
+		watch(self.videoTrack)
+		
+		
 		self.video_blackHole = None
 		
 		self.clientWebCameraTracks = []
@@ -358,7 +375,12 @@ class WebRtcServer(Process):
 		self.clients_audio_track = []
 		self.clients_video_track = []
 		
+		self.contact_details = []
+		
 		self.clients_pcs = []
+		
+		self.webcam = None
+		watch(self.webcam)
 		
 		self.to_emitter = to_emitter
 		self.data_from_mother = from_mother
@@ -375,7 +397,8 @@ class WebRtcServer(Process):
 		self.app.router.add_get("/signal.mp3", self.mp3)
 		self.app.router.add_post("/shutdown", self.shutdown_aiohttp)
 		self.app.router.add_post("/cancel_call", self.cancel_call)
-		web.run_app(self.app, access_log=None, host=str(ip_address), port=8080, ssl_context=None)
+		#web.run_app(self.app, access_log=None, host=str(ip_address), port=8080, ssl_context=None,keepalive_timeout=60.0,backlog=300)
+		web.run_app(self.app, access_log=None, host=str(ip_address), port=80, ssl_context=None,keepalive_timeout=60.0,backlog=300)
 
 
 	def get_available_cameras(self):
@@ -390,12 +413,12 @@ class WebRtcServer(Process):
 		return available_cameras
 
 	def create_local_tracks(self):
-		global relay, webcam
+		global relay
 		options = {"framerate": "30", "video_size": "640x480"}
 		camera_name = "video="+self.get_available_cameras()[0]
-		webcam = MediaPlayer(camera_name, format='dshow', options=options)
+		self.webcam = MediaPlayer(camera_name, format='dshow', options=options)
 		relay = MediaRelay()
-		return relay.subscribe(webcam.video)
+		return relay.subscribe(self.webcam.video)
 
 	async def index(self,request):
 		content = open(os.path.join(self.ROOT, "index.html"), encoding="utf8").read()
@@ -409,7 +432,6 @@ class WebRtcServer(Process):
 		return web.FileResponse(os.path.join(self.ROOT, "signal.mp3"))
 	
 	async def offer_client(self,request):
-		
 		params = await request.json()
 		offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
@@ -418,6 +440,11 @@ class WebRtcServer(Process):
 		
 		pc = RTCPeerConnection()
 		self.clients_pcs.append({"call_number_sender":call_number_sender,"call_number":call_number,"pc":pc})
+
+		@pc.on("connectionstatechange")
+		async def on_iceconnectionstatechange():
+			if pc.connectionState == "closed" or pc.connectionState == "failed":
+				await self.stop_client_peer_connection(pc)
 		
 		pc.addTrack(MediaRelay().subscribe(self.clients_audio_track[call_number-1]))
 		pc.addTrack(MediaRelay().subscribe(self.clients_video_track[call_number-1]))
@@ -433,10 +460,12 @@ class WebRtcServer(Process):
 
 
 	async def offer(self,request):	
+		print("Total peer connections: "+str(len(self.pcs)))
 		params = await request.json()
-		offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+		
 		
 		if self.current_active_calls == 3:
+			print("return 1")
 			return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		
 		self.current_active_calls += 1
@@ -457,54 +486,80 @@ class WebRtcServer(Process):
 		else:
 			self.to_emitter.send({"type":"call_3_offering","name":name,"surname":surname})
 
-		pc = RTCPeerConnection()
-		self.pcs.append(pc)
-
-		@pc.on("connectionstatechange")
-		async def on_iceconnectionstatechange():
-			if pc.connectionState == "closed" or pc.connectionState == "failed":
-				await self.stop_peer_connection(pc)
-
-		@pc.on("datachannel")
-		async def on_datachannel(channel):
-			self.channels.append(channel)
-			channel.send('{"type":"local_call_number","call_number":"'+str(self.current_active_calls)+'"}')
-
-			counter = 1
-			for pc_i in self.pcs[:-1]:
-				channel.send('{"type":"new-client","call_number":"'+str(counter)+'","name":"","surname":""}')
-				counter += 1
-
-			counter = 0
-			for pc_i in self.pcs[:-1]:
-				self.channels[counter].send('{"type":"new-client","call_number":"'+str(self.current_active_calls)+'","name":"","surname":""}')
-				counter += 1
-
-			@channel.on("message")
-			async def on_message(message):
-				if message == "disconnected":
-					await self.stop_peer_connection(pc)
-
-
+		pc = None
 
 		timer = 0
 		while(timer<30 and self.data_from_mother.qsize()==0 and self.calls_answered[self.current_active_calls-1] == False):
+			if request.transport is None or request.transport.is_closing():
+				try:
+					request.transport.close()
+				except:
+					pass
+				print("client end the request")
+				break
 			timer+=0.1
 			await asyncio.sleep(0.1)
 		self.calls_answered[self.current_active_calls-1] = True
 		if self.data_from_mother.qsize() == 0:
 			#reject offer
+			while not self.data_from_mother.empty():
+				self.data_from_mother.get()
+			print("rejecting offer")
 			if self.current_active_calls == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-server"})
-			elif self.current_active_calls == 1:
+			elif self.current_active_calls == 2:
 				self.to_emitter.send({"type":"call-2-status","status":"closed-by-server"})
 			else:
 				self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
-				
-			return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
+			await self.stop_peer_connection(pc)
+			if request.transport is None or request.transport.is_closing():
+				print("return 2")
+				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
+			else:
+				print("return 3")
+				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		else:
 			data = self.data_from_mother.get()
 			if (data["type"] == "call-1" and data["call"] == "answer") or (data["type"] == "call-2" and data["call"] == "answer") or (data["type"] == "call-3" and data["call"] == "answer"):
+				while not self.data_from_mother.empty():
+					self.data_from_mother.get()
+
+				pc = RTCPeerConnection()
+				pc.is_closed = False
+				self.pcs.append(pc)
+				self.contact_details.append({"name":name,"surname":surname})
+
+				@pc.on("connectionstatechange")
+				async def on_iceconnectionstatechange():
+					if pc.connectionState == "closed" or pc.connectionState == "failed":
+						for pc_i in self.pcs:
+							if id(pc_i) == id(pc):
+								await self.stop_peer_connection(pc)
+								break
+
+				@pc.on("datachannel")
+				async def on_datachannel(channel):
+					self.channels.append(channel)
+					channel.send('{"type":"local_call_number","call_number":"'+str(self.current_active_calls)+'"}')
+
+					counter = 1
+					for pc_i in self.pcs[:-1]:
+						channel.send('{"type":"new-client","call_number":"'+str(counter)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
+						counter += 1
+
+					counter = 0
+					for pc_i in self.pcs[:-1]:
+						self.channels[counter].send('{"type":"new-client","call_number":"'+str(self.current_active_calls)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
+						counter += 1
+
+					@channel.on("message")
+					async def on_message(message):
+						if message == "disconnected":
+							await self.stop_peer_connection(pc)
+
+
+
+
 				
 				#audio from server to client
 				if self.stream_offer == None:
@@ -515,18 +570,7 @@ class WebRtcServer(Process):
 				if self.server_webcamera_video == None:
 					self.server_webcamera_video = self.create_local_tracks()
 				pc.addTrack(self.server_webcamera_video)
-				
-
-				#audio from other clients to new client
-				#for track in self.clients_audio_track:
-				#	#pc.addTrack(MediaRelay().subscribe(track, buffered=False))
-				#	pc.addTrack(track)
-
-				#video from other clients to new client
-				#for track in self.clients_video_track:
-				#	#pc.addTrack(MediaRelay().subscribe(track, buffered=False))
-				#	pc.addTrack(track)
-					
+									
 				#video from server attach to QLabel
 				if self.videoTrack == None:
 					self.videoTrack = WebCamera(self.server_webcamera_video,self.to_emitter)
@@ -558,6 +602,7 @@ class WebRtcServer(Process):
 					#	pc_i.addTransceiver(track.kind)
 					#	pc_i.addTrack(track)
 				
+				offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 				
 				# handle offer
 				await pc.setRemoteDescription(offer)
@@ -570,21 +615,52 @@ class WebRtcServer(Process):
 				self.manage_call_end_threads.append(threading.Thread(target=self.manage_call_end,args=(loop,self.current_active_calls)))
 				self.manage_call_end_threads[self.current_active_calls-1].start()
 				
+				print("return")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}))
 			else:
 				#reject call
+				while not self.data_from_mother.empty():
+					self.data_from_mother.get()
 				if self.current_active_calls == 1:
 					self.to_emitter.send({"type":"call-1-status","status":"closed-by-server"})
 				elif self.current_active_calls == 2:
 					self.to_emitter.send({"type":"call-2-status","status":"closed-by-server"})
 				else:
 					self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
+				await self.stop_peer_connection(pc)
+				print("return 4")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 
-	async def stop_client_peer_connection(self,pc):
-		pass
+	async def stop_client_peer_connection(self,pc):		
+		try:
+			if pc is not None:
+				try:
+					await pc.close()
+					counter = 0
+					for pc_i in self.clients_pcs:
+						if id(pc_i["pc"]) == id(pc):
+							del self.clients_pcs[counter]
+							break
+						counter +=1
+				except Exception as e:
+					print(e)
+		except Exception as e:
+			print(e)
 
 	async def stop_peer_connection(self,pc):
+		if pc is None:
+			try:
+				self.offers_in_progress[self.current_active_calls-1] = False
+				self.calls_answered[self.current_active_calls-1] = True
+			except:
+				pass
+			
+			self.current_active_calls -= 1
+			return None
+		if pc.is_closed:
+			return None
+		pc.is_closed = True
+		print("calling stop_peer_connection")
 		call_number = 0
 		counter = 0
 		for pc_i in self.pcs:
@@ -592,15 +668,21 @@ class WebRtcServer(Process):
 			if id(pc) == id(pc_i):
 				call_number = counter
 				break
-		
 		try:
+			del self.contact_details[call_number-1]
 			if pc is not None:
 				try:
 					await pc.close()
+					del self.pcs[call_number-1]
 				except Exception as e:
-					print(e)
-					
-			self.channels[call_number-1].close()
+					#print(e)
+					pass
+			if self.calls_answered[call_number-1] == True:
+				try:
+					self.channels[call_number-1].close()
+				except:
+					#print(traceback.format_exc())
+					pass
 			
 			if self.stream_offer is not None:
 				if self.current_active_calls == 1:
@@ -608,26 +690,38 @@ class WebRtcServer(Process):
 					self.stream_offer.stop_offering()
 					del self.stream_offer
 					self.stream_offer = None
+			try:
+				if self.blackHoles[call_number-1] is not None:
+					await self.blackHoles[call_number-1].stop()
+					self.blackHoles[call_number-1] = None
+					del self.blackHoles[call_number-1]
+			except:
+				#print(traceback.format_exc())
+				pass
 			
-			if self.blackHoles[call_number-1] is not None:
-				await self.blackHoles[call_number-1].stop()
-				self.blackHoles[call_number-1] = None
-				del self.blackHoles[call_number-1]
+			try:
+				if self.micTracks[call_number-1] is not None:
+					self.micTracks[call_number-1].close_full()
+					del self.micTracks[call_number-1]
+			except:
+				#print(traceback.format_exc())
+				pass
 			
-			if self.micTracks[call_number-1] is not None:
-				self.micTracks[call_number-1].close_full()
-				del self.micTracks[call_number-1]
-				self.micTracks[call_number-1] = None
-
-			if self.current_active_calls == 1:
-				try:
-					await self.videoTrack.stop()
-					self.videoTrack = None
-					await self.video_blackHole.stop()
-					self.video_blackHole = None
-				except:
-					pass
-			
+			try:
+				if self.current_active_calls == 1:
+					try:
+						self.webcam.video.stop()
+						self.videoTrack.stop()
+						await self.video_blackHole.stop()
+						self.videoTrack = None
+						self.video_blackHole = None
+					except:
+						pass
+						#print(traceback.format_exc())
+			except:
+				#print(traceback.format_exc())
+				pass
+				
 			if call_number == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-client"})
 			elif call_number == 2:
@@ -637,36 +731,69 @@ class WebRtcServer(Process):
 
 
 			try:
-				await self.clientWebCameraTracks[call_number-1].stop()
+				self.clientWebCameraTracks[call_number-1].stop()
 				await self.video_blackHole_clients[call_number-1].stop()
+			except:
+				#print(traceback.format_exc())
+				pass
+			
+			try:
+				del self.clientWebCameraTracks[call_number-1]
+				del self.video_blackHole_clients[call_number-1]
+			except:
+				#print(traceback.format_exc())
+				pass
+				
+			try:	
+				self.calls_answered[call_number-1] = False
+			except:
+				#print(traceback.format_exc())
+				pass
+
+			try:
+				del self.channels[call_number-1]
+			except:
+				#print(traceback.format_exc())
+				pass
+
+			try:
+				self.offers_in_progress[call_number-1] = False
+				self.manage_call_end_threads[call_number-1].join()
+				del self.manage_call_end_threads[call_number-1]
 			except:
 				pass
 			
-			del self.clientWebCameraTracks[call_number-1]
-			del self.video_blackHole_clients[call_number-1]
-			
-			self.calls_answered[call_number-1] = False
-
-
-
-			del self.channels[call_number-1]
-			del self.pcs[call_number-1]
-
-
-			self.offers_in_progress[call_number-1] = False
-			self.manage_call_end_threads[call_number-1].join()
-			del self.manage_call_end_threads[call_number-1]
-			self.current_active_calls -=1
-			
-			del self.clients_audio_track[call_number-1]
-			del self.clients_video_track[call_number-1]
+			try:
+				self.current_active_calls -=1
+			except:
+				pass
+				
+			try:
+				if self.current_active_calls == 0:
+					self.to_emitter.send({"type":"hide_server_web_camera"})
+					self.server_webcamera_video = None
+				
+				del self.clients_audio_track[call_number-1]
+				del self.clients_video_track[call_number-1]
+			except:
+				#print(traceback.format_exc())
+				pass
 		except Exception as e:
-			print(e)
+			print(traceback.format_exc())
 		
 		counter = 1
 		for channel in self.channels:
 			channel.send('{"type":"local_call_number","call_number":"'+str(counter)+'"}')
 			counter += 1
+			
+		for pc_i in self.clients_pcs:
+			if pc_i["call_number_sender"] == call_number:
+				await self.stop_client_peer_connection(pc_i["pc"])
+
+		for pc_i in self.clients_pcs:
+			if pc_i["call_number"] == call_number:
+				await self.stop_client_peer_connection(pc_i["pc"])
+		print("END")		
 		
 	# to be fixed
 	async def cancel_call(self,request):
@@ -712,9 +839,18 @@ class WebRtcServer(Process):
 				sleep(1)
 			else:
 				data = self.data_from_mother.get()
+				while not self.data_from_mother.empty():
+					self.data_from_mother.get()
 				if data["type"] == "call-1" and data["call"] == "end":
 					for channel in self.channels:
-						channel.send("{'type':'closing'}")
+						channel.send('{"type":"closing-call-1"}')
+				elif data["type"] == "call-2" and data["call"] == "end":
+					for channel in self.channels:
+						channel.send('{"type":"closing-call-2"}')
+				else:
+					for channel in self.channels:
+						channel.send('{"type":"closing-call-3"}')
+				break
 		print("manage_call_end will be finished")
 	
 	
@@ -797,6 +933,7 @@ class ClientWebCamera(MediaStreamTrack):
 		self.track = track
 		self.to_emitter = to_emitter
 		self.call_number = call_number
+		#self.counter = 0
 		
 	async def recv(self):
 		frame = await self.track.recv()
@@ -807,7 +944,9 @@ class ClientWebCamera(MediaStreamTrack):
 			self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[pil_image]})
 		else:
 			self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[pil_image]})
-		return frame
+		#print(self.counter)
+		#self.counter += 1
+		return None
 
 class ClientTrack(MediaStreamTrack):
 	kind = "audio"
@@ -883,6 +1022,7 @@ if __name__ == "__main__":
 	os.system("taskkill /f /im ngrok.exe")
 	hostname = socket.gethostname()
 	ip_address = socket.gethostbyname(hostname)
-	tunnel = ngrok.connect(str(ip_address)+":8080", "http")
+	#tunnel = ngrok.connect(str(ip_address)+":8080", "http")
+	tunnel = ngrok.connect(str(ip_address), "http","host_header:rewrite")
 	program = Main(tunnel.public_url)
 	

@@ -47,7 +47,8 @@
 		  </div>
 		  <input class="btn btn-primary" style="width:100%" id="control_call_button" type="button" value="Έναρξη κλήσης"/></br></br>
 		</form>
-		<input class="btn btn-primary" style="width:100%;display:none;" id="stop_call_button" type="button" value="Διακοπή κλήσης"/>
+		<input class="btn btn-primary d-none" style="width:100%;" id="stop_call_button" type="button" value="Διακοπή κλήσης"/>
+		</br>
 		<table class="table table-bordered">
 		  <tbody>
 			<tr>
@@ -59,10 +60,10 @@
 			  
 			</tr>
 			<tr>
-			  <td class="align-middle text-center">Άλλος ακροατής: Όνομα Επώνυμο:</td>
+			  <td class="align-middle text-center" id="listener-2">Άλλος ακροατής: Όνομα Επώνυμο:</td>
 			  <td><video id="client-video-2" width="320" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-2" autoplay="true" controls="true"></audio></td>			  
 
-			  <td class="align-middle text-center">Άλλος ακροατής: Όνομα Επώνυμο:</td>
+			  <td class="align-middle text-center" id="listener-3">Άλλος ακροατής: Όνομα Επώνυμο:</td>
 			  <td><video id="client-video-3" width="320" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-3" autoplay="true" controls="true"></audio></td>
 			</tr>
 		  </tbody>

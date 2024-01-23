@@ -8,6 +8,12 @@ var have_server_audio = false;
 var local_call_number = null;
 var clients_pc = [];
 
+var closing = false
+var local_stream = null;
+
+var controller = null;
+var signal;
+
 function createLocalPeerConnection(client_call_number,client_name,client_surname){
 	var config = {
 		sdpSemantics: 'unified-plan',
@@ -87,8 +93,8 @@ function createPeerConnection() {
 			$("#signal-audio").currentTime = 0; // Reset time
 			document.getElementById('server-audio').srcObject = evt.streams[0];
 			
-			$("#control_call_button").css("visibility","hidden");
-			$("#stop_call_button").css("visibility","visible");
+			$("#control_call_button").addClass("d-none")
+			$("#stop_call_button").removeClass("d-none")
 		}else if (evt.track.kind == 'video'){
 			document.getElementById('server-video').srcObject = evt.streams[0];
 		}
@@ -99,6 +105,23 @@ function createPeerConnection() {
 	return pc;
 }
 
+function timeoutPromise(ms, promise) {
+  return new Promise((resolve, reject) => {
+	const timeoutId = setTimeout(() => {
+	  reject(new Error("promise timeout"))
+	}, ms);
+	promise.then(
+	  (res) => {
+		clearTimeout(timeoutId);
+		resolve(res);
+	  },
+	  (err) => {
+		clearTimeout(timeoutId);
+		reject(err);
+	  }
+	);
+  })
+}
 function negotiate() {
 	return pc.createOffer({"offerToReceiveAudio":true,"offerToReceiveVideo":true}).then(function(offer) {
 		return pc.setLocalDescription(offer);
@@ -122,8 +145,9 @@ function negotiate() {
 		});
 	}).then(function() {
 		var offer = pc.localDescription;
-		
-		return fetch('/offer', {
+		controller = new AbortController();
+		signal = controller.signal;
+		return timeoutPromise(30000, fetch('/offer', {
 			body: JSON.stringify({
 				sdp: offer.sdp,
 				type: offer.type,
@@ -133,26 +157,30 @@ function negotiate() {
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			method: 'POST'
-		});
+			method: 'POST',
+			signal
+		}));
 	}).then(function(response) {
 		return response.json();
 	}).then(function(answer) {
 		if (answer.sdp == "" && answer.type == ""){
+			console.log("call rejected 167");
 			setTimeout(call_rejected, 1000);
 			return null;
 		}else{
 			return pc.setRemoteDescription(answer);
 		}
 	}).catch(function(e) {
+		setTimeout(call_rejected, 1000);
 		//alert(e);
 		console.log(e);
+		return null;
 	});
 	
 }
 
 function negotiate_client(call_number) {
-	return clients_pc[clients_pc.length-1].createOffer().then(function(offer) {
+	return clients_pc[clients_pc.length-1].createOffer({"offerToReceiveAudio":true,"offerToReceiveVideo":true}).then(function(offer) {
 		return clients_pc[clients_pc.length-1].setLocalDescription(offer);
 	}).then(function() {
 		// wait for ICE gathering to complete
@@ -201,50 +229,110 @@ function negotiate_client(call_number) {
 
 
 function call_rejected(){
-	$("#signal-audio").trigger("pause");
-	$("#signal-audio").currentTime = 0; // Reset time
-	// close data channel
-	if (dc) {
-		dc.close();
-	}
-
-	// close local audio / video
-	pc.getSenders().forEach(function(sender) {
-		sender.track.stop();
-	});
-
-	// close transceivers
-	if (pc.getTransceivers) {
-		pc.getTransceivers().forEach(function(transceiver) {
-			if (transceiver.stop) {
-				transceiver.stop();
-			}
-		});
-	}
-
-
-
-	// close peer connection
-	setTimeout(function() {
-		pc.close();
-		pc = null;
-		console.log("Local peer connection closed");
-	}, 500);
-
-	$("#control_call_button").css("visibility","visible");
-	$("#stop_call_button").css("visibility","hidden");
+	console.log("call rejected");
+	stop_peer_connection(false);
 }
 
-function stop_peer_connection() {
+function stop_peer_connection(dc_message=true) {
+	console.log("stop peer connection");
+	$("#signal-audio").trigger("pause");
+	$("#signal-audio").currentTime = 0; // Reset time		
 	// send disconnect message because iceconnectionstate slow to go in failed or in closed state
-	dc.send("disconnected");
+	try{
+		if (dc.readyState == "open"){
+			if (dc_message){
+				dc.send("disconnected");
+				console.log("sending disconnect message");
+			}
+		}
+	}catch (e){
+		console.log(e);
+	}
+	try{
+		if (local_stream != null){
+			local_stream.getTracks().forEach(function(track) { track.stop(); })
+			local_stream = null;
+		}
+	}
+	catch (e){
+		console.log(e);
+	}
+	
+	$("#control_call_button").removeClass("d-none")
+	$("#stop_call_button").addClass("d-none")
+	
+	document.getElementById('client-video-1').srcObject = null;
+	document.getElementById('server-video').srcObject = null;
+	document.getElementById('server-audio').srcObject = null;
+	document.getElementById('client-audio-2').srcObject = null;
+	document.getElementById('client-video-2').srcObject = null;
+	document.getElementById('client-audio-3').srcObject = null;
+	document.getElementById('client-video-3').srcObject = null;
 
+	try{
+		if (controller != null){
+			controller.abort();
+		}
+		if (dc.readyState != "open"){
+			pc.close();
+		}
+	}catch (e){
+		console.log(e);
+	}
 
-	$("#control_call_button").css("visibility","visible");
-	$("#stop_call_button").css("visibility","hidden");
+}
+
+function stop_client_peer_connection(call_number) {
+	if (local_call_number == 1){
+		if (call_number == 2){
+			document.getElementById('client-audio-2').srcObject = null;
+			document.getElementById('client-video-2').srcObject = null;
+		}else if (call_number == 3){
+			document.getElementById('client-audio-3').srcObject = null;
+			document.getElementById('client-video-3').srcObject = null;
+		}
+	}else if (local_call_number == 2){
+		if (call_number == 1){
+			document.getElementById('client-audio-2').srcObject = null;
+			document.getElementById('client-video-2').srcObject = null;
+		}else if (call_number == 3){
+			document.getElementById('client-audio-3').srcObject = null;
+			document.getElementById('client-video-3').srcObject = null;
+		}
+	}else{
+		if (call_number == 1){
+			document.getElementById('client-audio-2').srcObject = null;
+			document.getElementById('client-video-2').srcObject = null;
+		}else if (call_number == 2){
+			document.getElementById('client-audio-3').srcObject = null;
+			document.getElementById('client-video-3').srcObject = null;
+		}
+	}
 }
 
 function start_client(client_call_number,client_name,client_surname){
+	if (local_call_number == 1){
+		if (client_call_number == 2){
+			$("#listener-2").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}else if (client_call_number == 3){
+			$("#listener-3").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}
+	}else if (local_call_number == 2){
+		if (client_call_number == 1){
+			$("#listener-2").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}else if (client_call_number == 3){
+			$("#listener-3").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}
+	}else{
+		if (client_call_number == 1){
+			$("#listener-2").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}else if (client_call_number == 2){
+			$("#listener-3").html("Άλλος ακροατής: "+client_name+" "+client_surname+":");
+		}
+	}
+
+
+	
 	createLocalPeerConnection(client_call_number,client_name,client_surname);
 	
 	clients_pc[clients_pc.length-1].onclose = function() {
@@ -269,12 +357,12 @@ function start_client(client_call_number,client_name,client_surname){
 	};
 	
 	
-	//negotiate_client(client_call_number);
+	negotiate_client(client_call_number);
 	
 	
 	constraints = {audio:true,video:true};
 	
-	navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+	/*navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
 		stream.getTracks().forEach(function(track) {
 			clients_pc[clients_pc.length-1].addTrack(track, stream);
 		});
@@ -282,10 +370,13 @@ function start_client(client_call_number,client_name,client_surname){
 		}, function(err) {
 			alert('Could not acquire media: ' + err);
 	});
-	
+	*/
 }
 
 function start(name,surname) {
+	$("#control_call_button").addClass("d-none");
+	$("#stop_call_button").removeClass("d-none");
+	
 	$("#signal-audio").trigger("play");
 	pc = createPeerConnection();
 	
@@ -299,9 +390,36 @@ function start(name,surname) {
 	dc.onmessage = function(evt) {
 		console.log(evt.data);
 		data = JSON.parse(evt.data);
-		if(data["type"] == "closing"){
-			stop_peer_connection();
+		if(data["type"] == "closing-call-1"){
+			
+			if (local_call_number == 1){
+				if (closing == false){
+					closing = true;
+					stop_peer_connection();
+				}
+			}else{
+				stop_client_peer_connection(1);
+			}
+		}else if (data["type"] == "closing-call-2"){
+			if (local_call_number == 2){
+				if (closing == false){
+					closing = true;
+					stop_peer_connection();
+				}
+			}else{
+				stop_client_peer_connection(2);
+			}
+		}else if (data["type"] == "closing-call-3"){
+			if (local_call_number == 3){
+				if (closing == false){
+					closing = true;
+					stop_peer_connection();
+				}
+			}else{
+				stop_client_peer_connection(3);
+			}
 		}
+			
 		
 		if (data["type"] == "local_call_number"){
 			local_call_number = data["call_number"];
@@ -318,6 +436,7 @@ function start(name,surname) {
 	};
 	
 	pc.onclose = function() {
+		closing = true;
 		// close data channel
 		if (dc) {
 			dc.close();
@@ -349,11 +468,16 @@ function start(name,surname) {
 	constraints = {audio:true,video:true};
 	
 	navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+		local_stream = stream;
 		stream.getTracks().forEach(function(track) {
-			pc.addTrack(track, stream);
-			if (track.kind == "video"){
-				//correct
-				document.getElementById('client-video-1').srcObject = stream;
+			try {
+				pc.addTrack(track, stream);
+				if (track.kind == "video"){
+					//correct
+					document.getElementById('client-video-1').srcObject = stream;
+				}
+			} catch(e){
+				//console.log(e);
 			}
 		});
 		return negotiate();
@@ -368,13 +492,30 @@ $(document).ready(function(){
 	$("#control_call_button").on( "click", function() {
 		name = $("#name").val();
 		surname = $("#surname").val();
+		closing = false;
+		controller = null;
 		start(name,surname)
 	});
 	
 	$("#stop_call_button").on( "click", function() {
+		closing = true;
 		stop_peer_connection();
 	});
+	//debug code
+	/*$("#name").on( "focus",async function(){
+		for(var i=0;i<10;i++){
+			$("#control_call_button").click();
+			await sleep(2000);
+			$("#stop_call_button").click();
+			await sleep(2000);
+		}
+	});
+	*/
 })
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 /*
 window.addEventListener("beforeunload", function (e) {
