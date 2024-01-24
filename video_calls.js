@@ -9,10 +9,15 @@ var local_call_number = null;
 var clients_pc = [];
 
 var closing = false
-var local_stream = null;
+
 
 var controller = null;
 var signal;
+
+var local_stream = {"audio":null,"video":null};
+var stream_client_1 = {"audio":null,"video":null};
+var stream_client_2 = {"audio":null,"video":null};
+var stream_client_3 = {"audio":null,"video":null};
 
 function createLocalPeerConnection(client_call_number,client_name,client_surname){
 	var config = {
@@ -24,45 +29,58 @@ function createLocalPeerConnection(client_call_number,client_name,client_surname
 	clients_pc.push(new RTCPeerConnection(config));
 
 	clients_pc[clients_pc.length-1].addEventListener('track', function(evt) {
+		
 		console.log(client_call_number);
 		if (evt.track.kind == 'audio'){
 			if (local_call_number == 1){
 				if (client_call_number == 2){
 					document.getElementById('client-audio-2').srcObject = evt.streams[0];
+					stream_client_2.audio = evt.streams[0];
 				}else if (client_call_number == 3){
 					document.getElementById('client-audio-3').srcObject = evt.streams[0];
+					stream_client_3.audio = evt.streams[0];
 				}
 			}else if (local_call_number == 2){
 				if (client_call_number == 1){
 					document.getElementById('client-audio-2').srcObject = evt.streams[0];
+					stream_client_2.audio = evt.streams[0];
 				}else if (client_call_number == 3){
 					document.getElementById('client-audio-3').srcObject = evt.streams[0];
+					stream_client_3.audio = evt.streams[0];
 				}
 			}else{
 				if (client_call_number == 1){
 					document.getElementById('client-audio-2').srcObject = evt.streams[0];
+					stream_client_2.audio = evt.streams[0];
 				}else if (client_call_number == 2){
 					document.getElementById('client-audio-3').srcObject = evt.streams[0];
+					stream_client_3.audio = evt.streams[0];
 				}
 			}
 		}else{
 			if (local_call_number == 1){
 				if (client_call_number == 2){
 					document.getElementById('client-video-2').srcObject = evt.streams[0];
+					stream_client_2.video = evt.streams[0];
 				}else if (client_call_number == 3){
 					document.getElementById('client-video-3').srcObject = evt.streams[0];
+					stream_client_3.video = evt.streams[0];
 				}
 			}else if (local_call_number == 2){
 				if (client_call_number == 1){
 					document.getElementById('client-video-2').srcObject = evt.streams[0];
+					stream_client_2.video = evt.streams[0];
 				}else if (client_call_number == 3){
 					document.getElementById('client-video-3').srcObject = evt.streams[0];
+					stream_client_3.video = evt.streams[0];
 				}
 			}else{
 				if (client_call_number == 1){
 					document.getElementById('client-video-2').srcObject = evt.streams[0];
+					stream_client_2.video = evt.streams[0];
 				}else if (client_call_number == 2){
 					document.getElementById('client-video-3').srcObject = evt.streams[0];
+					stream_client_3.video = evt.streams[0];
 				}
 			}
 		}
@@ -249,9 +267,10 @@ function stop_peer_connection(dc_message=true) {
 		console.log(e);
 	}
 	try{
-		if (local_stream != null){
-			local_stream.getTracks().forEach(function(track) { track.stop(); })
-			local_stream = null;
+		if (local_stream["audio"] != null){
+			local_stream.audio.stop();
+			local_stream.video.stop();
+			local_stream = {"audio":null,"video":null};
 		}
 	}
 	catch (e){
@@ -353,7 +372,58 @@ function start_client(client_call_number,client_name,client_surname){
 		}
 		clients_pc.splice(clients_pc.length-1, 1);
 		console.log("Local peer connection closed");
-
+		if (local_call_number == 1){
+			if (client_call_number ==2){
+				stream_client_2 = stream_client_3;
+				stream_client_3 = {"audio":null,"video":null};
+				$("#listener-2").html($("#listener-3").html());
+				$("#listener-3").html("Άλλος ακροατής:");
+				document.getElementById('client-audio-2').srcObject = stream_client_2.audio;
+				document.getElementById('client-audio-3').srcObject = null;
+				document.getElementById('client-video-2').srcObject = stream_client_2.video;
+				document.getElementById('client-video-3').srcObject = null;
+			}else{//client_call_number = 3
+				$("#listener-3").html("Άλλος ακροατής:");
+				document.getElementById('client-audio-3').srcObject = null;
+				document.getElementById('client-video-3').srcObject = null;			
+			}
+		}else{
+			if (local_call_number == 2){
+				if (client_call_number ==1){
+					stream_client_2 = stream_client_3;
+					stream_client_3 = {"audio":null,"video":null};
+					$("#listener-2").html($("#listener-3").html());
+					$("#listener-3").html("Άλλος ακροατής:");
+					document.getElementById('client-audio-2').srcObject = stream_client_2.audio;
+					document.getElementById('client-audio-3').srcObject = null;
+					document.getElementById('client-video-3').srcObject = stream_client_2.video;
+					document.getElementById('client-video-3').srcObject = null;
+				
+				}else{//client_call_number = 3
+					stream_client_3 = {"audio":null,"video":null};
+					$("#listener-3").html("Άλλος ακροατής:");
+					document.getElementById('client-audio-3').srcObject = null;
+					document.getElementById('client-video-3').srcObject = null;				
+				}
+			}else{//local_call_number = 3
+				if (client_call_number ==1){
+					stream_client_2 = stream_client_3;
+					stream_client_3 = {"audio":null,"video":null};
+					$("#listener-2").html($("#listener-3").html());
+					$("#listener-3").html("Άλλος ακροατής:");
+					document.getElementById('client-audio-2').srcObject = stream_client_2.audio;
+					document.getElementById('client-audio-3').srcObject = null;
+					document.getElementById('client-video-2').srcObject = stream_client_2.video;
+					document.getElementById('client-video-3').srcObject = null;
+				
+				}else{//client_call_number = 2
+					stream_client_3 = {"audio":null,"video":null};
+					$("#listener-3").html("Άλλος ακροατής:");
+					document.getElementById('client-audio-3').srcObject = null;
+					document.getElementById('client-video-3').srcObject = null;				
+				}
+			}
+		}
 	};
 	
 	
@@ -423,6 +493,7 @@ function start(name,surname) {
 		
 		if (data["type"] == "local_call_number"){
 			local_call_number = data["call_number"];
+			stream_client_1 = local_stream;
 		}
 		
 		if (data["type"] == "new-client"){
@@ -468,14 +539,19 @@ function start(name,surname) {
 	constraints = {audio:true,video:true};
 	
 	navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
-		local_stream = stream;
+		//local_stream = stream;
 		stream.getTracks().forEach(function(track) {
+			
 			try {
 				pc.addTrack(track, stream);
 				if (track.kind == "video"){
 					//correct
+					local_stream.video = track;
 					document.getElementById('client-video-1').srcObject = stream;
+				}else{
+					local_stream.audio = track;
 				}
+				stream_client_1 = local_stream;
 			} catch(e){
 				//console.log(e);
 			}
@@ -514,7 +590,7 @@ $(document).ready(function(){
 })
 
 function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /*
