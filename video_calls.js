@@ -253,6 +253,7 @@ function call_rejected(){
 
 function stop_peer_connection(dc_message=true) {
 	console.log("stop peer connection");
+	//alert("stop peer connection");
 	$("#signal-audio").trigger("pause");
 	$("#signal-audio").currentTime = 0; // Reset time		
 	// send disconnect message because iceconnectionstate slow to go in failed or in closed state
@@ -505,9 +506,19 @@ function start(name,surname) {
 		}
 		
 	};
+
+	pc.onconnectionstatechange = (event) => {
+	   let newCS = pc.connectionState;
+	   if (newCS == "disconnected" || newCS == "failed" || newCS == "closed") {
+		  stop_peer_connection();
+	   }
+	}
+
 	
 	pc.onclose = function() {
 		closing = true;
+		stop_peer_connection(false);
+		
 		// close data channel
 		if (dc) {
 			dc.close();
@@ -528,7 +539,7 @@ function start(name,surname) {
 		}
 		pc = null;
 		console.log("Local peer connection closed");
-
+		//alert("Local peer connection closed");
 	
 	};
 	

@@ -1,3 +1,8 @@
+import av.logging
+# monkey patch av.logging.restore_default_callback 
+restore_default_callback = lambda *args: args
+av.logging.restore_default_callback = restore_default_callback
+av.logging.set_level(av.logging.ERROR)
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import pyqtSignal, QThread, Qt
@@ -27,6 +32,7 @@ import requests
 import platform
 from PIL import Image
 import ssl
+import logging
 ssl._create_default_https_context = ssl._create_unverified_context 
 from pyngrok import ngrok, conf
 from pyngrok.conf import PyngrokConfig
@@ -922,8 +928,9 @@ class WebCamera(MediaStreamTrack):
 		frame = await self.track.recv()
 		pil_image = frame.to_image()
 		self.to_emitter.send({"type":"server-web-camera-frame","pil_image":[pil_image]})
-		#return None
-		return frame
+		#print("1")
+		return None
+		#return frame
 
 class ClientWebCamera(MediaStreamTrack):
 	kind = "video"
@@ -969,6 +976,9 @@ class ClientTrack(MediaStreamTrack):
 		try:
 			frame = await self.track.recv()
 		except:
+			print(self.track.readyState)
+			print("MediaStreamError")
+			print(traceback.format_exc())
 			self.track = None
 			if self.run:
 				self.close_full()
