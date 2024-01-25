@@ -500,7 +500,7 @@ class WebRtcServer(Process):
 				try:
 					request.transport.close()
 				except:
-					pass
+					print(traceback.format_exc())
 				print("client end the request")
 				break
 			timer+=0.1
@@ -649,9 +649,9 @@ class WebRtcServer(Process):
 							break
 						counter +=1
 				except Exception as e:
-					print(e)
+					print(traceback.format_exc())
 		except Exception as e:
-			print(e)
+			print(traceback.format_exc())
 
 	async def stop_peer_connection(self,pc):
 		if pc is None:
@@ -659,7 +659,7 @@ class WebRtcServer(Process):
 				self.offers_in_progress[self.current_active_calls-1] = False
 				self.calls_answered[self.current_active_calls-1] = True
 			except:
-				pass
+				print(traceback.format_exc())
 			
 			self.current_active_calls -= 1
 			return None
@@ -682,13 +682,13 @@ class WebRtcServer(Process):
 					del self.pcs[call_number-1]
 				except Exception as e:
 					#print(e)
-					pass
+					print(traceback.format_exc())
 			if self.calls_answered[call_number-1] == True:
 				try:
 					self.channels[call_number-1].close()
 				except:
 					#print(traceback.format_exc())
-					pass
+					print(traceback.format_exc())
 			
 			if self.stream_offer is not None:
 				if self.current_active_calls == 1:
@@ -703,7 +703,7 @@ class WebRtcServer(Process):
 					del self.blackHoles[call_number-1]
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 			
 			try:
 				if self.micTracks[call_number-1] is not None:
@@ -711,7 +711,7 @@ class WebRtcServer(Process):
 					del self.micTracks[call_number-1]
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 			
 			try:
 				if self.current_active_calls == 1:
@@ -722,11 +722,11 @@ class WebRtcServer(Process):
 						self.videoTrack = None
 						self.video_blackHole = None
 					except:
-						pass
+						print(traceback.format_exc())
 						#print(traceback.format_exc())
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 				
 			if call_number == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-client"})
@@ -741,38 +741,38 @@ class WebRtcServer(Process):
 				await self.video_blackHole_clients[call_number-1].stop()
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 			
 			try:
 				del self.clientWebCameraTracks[call_number-1]
 				del self.video_blackHole_clients[call_number-1]
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 				
 			try:	
 				self.calls_answered[call_number-1] = False
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 
 			try:
 				del self.channels[call_number-1]
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 
 			try:
 				self.offers_in_progress[call_number-1] = False
 				self.manage_call_end_threads[call_number-1].join()
 				del self.manage_call_end_threads[call_number-1]
 			except:
-				pass
+				print(traceback.format_exc())
 			
 			try:
 				self.current_active_calls -=1
 			except:
-				pass
+				print(traceback.format_exc())
 				
 			try:
 				if self.current_active_calls == 0:
@@ -783,7 +783,7 @@ class WebRtcServer(Process):
 				del self.clients_video_track[call_number-1]
 			except:
 				#print(traceback.format_exc())
-				pass
+				print(traceback.format_exc())
 		except Exception as e:
 			print(traceback.format_exc())
 		
@@ -914,7 +914,7 @@ class Server_Stream_Offer(MediaStreamTrack):
 			self.input_stream.close()
 			self.read_from_microphone_thread.join()
 		except Exception as e:
-			print(e)
+			print(traceback.format_exc())
 
 class WebCamera(MediaStreamTrack):
 	kind = "video"
@@ -978,7 +978,7 @@ class ClientTrack(MediaStreamTrack):
 		except:
 			print(self.track.readyState)
 			print("MediaStreamError")
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 			self.track = None
 			if self.run:
 				self.close_full()

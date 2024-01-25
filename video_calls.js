@@ -22,7 +22,7 @@ var stream_client_3 = {"audio":null,"video":null};
 function createLocalPeerConnection(client_call_number,client_name,client_surname){
 	var config = {
 		sdpSemantics: 'unified-plan',
-		iceServers: [{urls: ['stun:stun.l.google.com:19302']}]
+		iceServers: [{urls: ["stun:stun1.l.google.com:19302","stun:stun2.l.google.com:19302","stun:stun.l.google.com:19302","stun:stun3.l.google.com:19302","stun:stun4.l.google.com:19302"]}]
 	};
 	
 
@@ -248,6 +248,7 @@ function negotiate_client(call_number) {
 
 function call_rejected(){
 	console.log("call rejected");
+	console.log("251");
 	stop_peer_connection(false);
 }
 
@@ -466,6 +467,7 @@ function start(name,surname) {
 			if (local_call_number == 1){
 				if (closing == false){
 					closing = true;
+					console.log("470");
 					stop_peer_connection();
 				}
 			}else{
@@ -475,6 +477,7 @@ function start(name,surname) {
 			if (local_call_number == 2){
 				if (closing == false){
 					closing = true;
+					console.log("480");
 					stop_peer_connection();
 				}
 			}else{
@@ -484,6 +487,7 @@ function start(name,surname) {
 			if (local_call_number == 3){
 				if (closing == false){
 					closing = true;
+					console.log("489");
 					stop_peer_connection();
 				}
 			}else{
@@ -510,13 +514,24 @@ function start(name,surname) {
 	pc.onconnectionstatechange = (event) => {
 	   let newCS = pc.connectionState;
 	   if (newCS == "disconnected" || newCS == "failed" || newCS == "closed") {
-		  stop_peer_connection();
+			console.log(newCS);//failed in most cases
+			console.log("517");
+			//stop_peer_connection();
+			console.log('pc createOffer restart');
+			//pc.createOffer({"offerToReceiveAudio":true,"offerToReceiveVideo":true,"iceRestart":true}).then(onCreateOfferSuccess, onCreateSessionDescriptionError);
+			stop_time_out = setTimeout(stop_with_time_out, 5000);	
+	   }else{
+			if (stop_time_out != null){
+				clearTimeout(stop_time_out);
+				stop_time_out = null;
+			}
 	   }
 	}
 
 	
 	pc.onclose = function() {
 		closing = true;
+		console.log("525");
 		stop_peer_connection(false);
 		
 		// close data channel
@@ -551,6 +566,8 @@ function start(name,surname) {
 	
 	navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
 		//local_stream = stream;
+		stream.onactive = onactive;
+		stream.oninactive = oninactive;
 		stream.getTracks().forEach(function(track) {
 			
 			try {
@@ -575,6 +592,38 @@ function start(name,surname) {
 	
 }
 
+function onCreateOfferSuccess(desc) {
+  pc.setLocalDescription(desc).then(() => onSetLocalSuccess(pc), onSetSessionDescriptionError);
+}
+
+var stop_time_out = null;
+
+function onCreateSessionDescriptionError(error){
+	stop_time_out = setTimeout(stop_with_time_out, 5000);	
+	//stop_peer_connection(false);
+}
+
+function stop_with_time_out(){
+	stop_peer_connection(false);
+	stop_time_out = null;
+}
+
+function onSetLocalSuccess(pc) {
+	return null;
+}
+
+function onSetSessionDescriptionError(error) {
+	return null;
+}
+
+function onactive() {
+  console.log("on active event");
+}
+
+function oninactive() {
+  console.log("on inactive event");
+}
+
 $(document).ready(function(){
 	$("#control_call_button").on( "click", function() {
 		name = $("#name").val();
@@ -586,6 +635,7 @@ $(document).ready(function(){
 	
 	$("#stop_call_button").on( "click", function() {
 		closing = true;
+		console.log("595");
 		stop_peer_connection();
 	});
 	//debug code
