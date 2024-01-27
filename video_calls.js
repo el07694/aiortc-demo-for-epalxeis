@@ -165,21 +165,31 @@ function negotiate() {
 		var offer = pc.localDescription;
 		controller = new AbortController();
 		signal = controller.signal;
-		return timeoutPromise(30000, fetch('/offer', {
-			body: JSON.stringify({
-				sdp: offer.sdp,
-				type: offer.type,
-				"name":name,
-				"surname":surname
-			}),
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			method: 'POST',
-			signal
-		}));
+		try{
+			promise = timeoutPromise(60000, fetch('/offer', {
+				body: JSON.stringify({
+					sdp: offer.sdp,
+					type: offer.type,
+					"name":name,
+					"surname":surname
+				}),
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				method: 'POST',
+				signal
+			}));
+			return promise;
+		}catch (error){
+			stop_peer_connection();
+			console.log(error);
+		}
 	}).then(function(response) {
-		return response.json();
+		if (response.ok){
+			return response.json();
+		}else{
+			stop_peer_connection(false);
+		}
 	}).then(function(answer) {
 		if (answer.sdp == "" && answer.type == ""){
 			console.log("call rejected 167");

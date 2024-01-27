@@ -137,6 +137,7 @@ class Main:
 		self.ui.client_1_reject.hide()
 		self.ui.client_1_stop.hide()
 		self.queue.put({"type":"call-1","call":"end"})
+		print("end_call_1")
 	
 	def call_1_status(self,status):
 		if status == "closed-by-client" or status == "closed-by-server":
@@ -253,16 +254,22 @@ class Main:
 		self.ui.server_video.show()
 	
 	def client_1_web_camera_packet(self,pil_image):
+		if pil_image is None:
+			return self.end_call_1(None)
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_1_video.setPixmap(pixmap)
 		self.ui.client_1_video.show()
 
 	def client_2_web_camera_packet(self,pil_image):
+		if pil_image is None:
+			return self.end_call_2(None)
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_2_video.setPixmap(pixmap)
 		self.ui.client_2_video.show()
 		
 	def client_3_web_camera_packet(self,pil_image):
+		if pil_image is None:
+			return self.end_call_3(None)
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_3_video.setPixmap(pixmap)
 		self.ui.client_3_video.show()
@@ -536,12 +543,23 @@ class WebRtcServer(Process):
 				self.contact_details.append({"name":name,"surname":surname})
 
 				@pc.on("connectionstatechange")
-				async def on_iceconnectionstatechange():
+				async def on_connectionstatechange():
 					if pc.connectionState == "closed" or pc.connectionState == "failed":
 						for pc_i in self.pcs:
 							if id(pc_i) == id(pc):
 								await self.stop_peer_connection(pc)
 								break
+
+				@pc.on("iceconnectionstatechange")
+				async def on_iceconnectionstatechange():
+					print(f"ICE connection state is {pc.iceConnectionState}")
+					if pc.iceConnectionState == "failed" or pc.iceConnectionState == "closed":
+						for pc_i in self.pcs:
+							if id(pc_i) == id(pc):
+								await self.stop_peer_connection(pc)
+								break
+
+
 
 				@pc.on("datachannel")
 				async def on_datachannel(channel):
@@ -564,6 +582,14 @@ class WebRtcServer(Process):
 							await self.stop_peer_connection(pc)
 
 
+					async def monitor():
+						while True:
+							if channel.transport.transport.state == "closed":
+								print("Closed from datachannel")
+								await self.stop_peer_connection(pc)
+								break
+							await asyncio.sleep(5)
+					asyncio.ensure_future(monitor())
 
 
 				
@@ -592,14 +618,14 @@ class WebRtcServer(Process):
 					if track.kind == "audio":
 						self.clients_audio_track.append(track)
 						#audio from client (server use)
-						self.micTracks.append(ClientTrack(track))
+						self.micTracks.append(ClientTrack(track,self,pc,self.current_active_calls,self.to_emitter))
 						self.blackHoles.append(MediaBlackhole())
 						self.blackHoles[self.current_active_calls-1].addTrack(self.micTracks[self.current_active_calls-1])
 						await self.blackHoles[self.current_active_calls-1].start()
 					else:
 						self.clients_video_track.append(track)
 						#video from client (server use)
-						self.clientWebCameraTracks.append(ClientWebCamera(track,self.to_emitter,self.current_active_calls))
+						self.clientWebCameraTracks.append(ClientWebCamera(track,self.to_emitter,self.current_active_calls,self,pc))
 						self.video_blackHole_clients.append(MediaBlackhole())
 						self.video_blackHole_clients[self.current_active_calls-1].addTrack(self.clientWebCameraTracks[self.current_active_calls-1])
 						await self.video_blackHole_clients[self.current_active_calls-1].start()
@@ -618,8 +644,10 @@ class WebRtcServer(Process):
 				await pc.setLocalDescription(answer)
 
 				loop = asyncio.get_event_loop()
-				self.manage_call_end_threads.append(threading.Thread(target=self.manage_call_end,args=(loop,self.current_active_calls)))
-				self.manage_call_end_threads[self.current_active_calls-1].start()
+				task = asyncio.ensure_future(self.manage_call_end(loop,self.current_active_calls))
+				self.manage_call_end_threads.append(task)
+				print("123")
+				#self.manage_call_end_threads[self.current_active_calls-1].start()
 				
 				print("return")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}))
@@ -654,6 +682,8 @@ class WebRtcServer(Process):
 			print(traceback.format_exc())
 
 	async def stop_peer_connection(self,pc):
+		print("stop peer connection")
+		print(pc)
 		if pc is None:
 			try:
 				self.offers_in_progress[self.current_active_calls-1] = False
@@ -674,11 +704,15 @@ class WebRtcServer(Process):
 			if id(pc) == id(pc_i):
 				call_number = counter
 				break
+		print("call number found")
 		try:
 			del self.contact_details[call_number-1]
 			if pc is not None:
 				try:
+					print("pc.close()")
+					print(pc)
 					await pc.close()
+					print("pc closed")
 					del self.pcs[call_number-1]
 				except Exception as e:
 					#print(e)
@@ -686,6 +720,7 @@ class WebRtcServer(Process):
 			if self.calls_answered[call_number-1] == True:
 				try:
 					self.channels[call_number-1].close()
+					print("channel closed")
 				except:
 					#print(traceback.format_exc())
 					print(traceback.format_exc())
@@ -696,11 +731,13 @@ class WebRtcServer(Process):
 					self.stream_offer.stop_offering()
 					del self.stream_offer
 					self.stream_offer = None
+					print("stream offer closed")
 			try:
 				if self.blackHoles[call_number-1] is not None:
 					await self.blackHoles[call_number-1].stop()
 					self.blackHoles[call_number-1] = None
 					del self.blackHoles[call_number-1]
+					print("audio blackhole closed")
 			except:
 				#print(traceback.format_exc())
 				print(traceback.format_exc())
@@ -709,6 +746,7 @@ class WebRtcServer(Process):
 				if self.micTracks[call_number-1] is not None:
 					self.micTracks[call_number-1].close_full()
 					del self.micTracks[call_number-1]
+					print("remote audio track closed")
 			except:
 				#print(traceback.format_exc())
 				print(traceback.format_exc())
@@ -721,6 +759,7 @@ class WebRtcServer(Process):
 						await self.video_blackHole.stop()
 						self.videoTrack = None
 						self.video_blackHole = None
+						print("server webcamera closed")						
 					except:
 						print(traceback.format_exc())
 						#print(traceback.format_exc())
@@ -764,7 +803,7 @@ class WebRtcServer(Process):
 
 			try:
 				self.offers_in_progress[call_number-1] = False
-				self.manage_call_end_threads[call_number-1].join()
+				await self.manage_call_end_threads[call_number-1]
 				del self.manage_call_end_threads[call_number-1]
 			except:
 				print(traceback.format_exc())
@@ -773,9 +812,10 @@ class WebRtcServer(Process):
 				self.current_active_calls -=1
 			except:
 				print(traceback.format_exc())
-				
+			print("814")	
 			try:
 				if self.current_active_calls == 0:
+					print("self.current_active_calls = 0")
 					self.to_emitter.send({"type":"hide_server_web_camera"})
 					self.server_webcamera_video = None
 				
@@ -837,14 +877,16 @@ class WebRtcServer(Process):
 			self.output_stream.write(slice.raw_data)
 			self.chunk_number += 1
 
-	def manage_call_end(self,loop,call_number):
+	async def manage_call_end(self,loop,call_number):
+		print("Manage call end")
 		asyncio.set_event_loop(loop)
 		while(self.offers_in_progress[call_number-1]):
 			qsize = self.data_from_mother.qsize()
 			if qsize == 0:
-				sleep(1)
+				await asyncio.sleep(1)
 			else:
 				data = self.data_from_mother.get()
+				print(data)
 				while not self.data_from_mother.empty():
 					self.data_from_mother.get()
 				if data["type"] == "call-1" and data["call"] == "end":
@@ -856,6 +898,8 @@ class WebRtcServer(Process):
 				else:
 					for channel in self.channels:
 						channel.send('{"type":"closing-call-3"}')
+				print("stop peer connection 897")
+				await self.stop_peer_connection(self.pcs[call_number-1])
 				break
 		print("manage_call_end will be finished")
 	
@@ -935,32 +979,51 @@ class WebCamera(MediaStreamTrack):
 class ClientWebCamera(MediaStreamTrack):
 	kind = "video"
 
-	def __init__(self,track,to_emitter,call_number):
+	def __init__(self,track,to_emitter,call_number,parent_self,pc):
 		super().__init__()	# don't forget this!
 		self.track = track
 		self.to_emitter = to_emitter
 		self.call_number = call_number
+		self.parent_self = parent_self
+		self.pc = pc
 		#self.counter = 0
 		
 	async def recv(self):
-		frame = await self.track.recv()
-		pil_image = frame.to_image()
-		if self.call_number == 1:
-			self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[pil_image]})
-		elif self.call_number == 2:
-			self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[pil_image]})
-		else:
-			self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[pil_image]})
-		#print(self.counter)
-		#self.counter += 1
-		return None
+		try:
+			frame = await self.track.recv()
+			pil_image = frame.to_image()
+			if self.call_number == 1:
+				self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[pil_image]})
+			elif self.call_number == 2:
+				self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[pil_image]})
+			else:
+				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[pil_image]})
+			#print(self.counter)
+			#self.counter += 1
+			return None
+		except:
+			if self.call_number == 1:
+				self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
+			elif self.call_number == 2:
+				self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
+			else:
+				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
+			raise MediaStreamError
 
+	async def stop_peer(self):
+		await self.parent_self.stop_peer_connection(self.pc)				
+
+			
 class ClientTrack(MediaStreamTrack):
 	kind = "audio"
 
-	def __init__(self, track):
+	def __init__(self, track,parent_self,pc,call_number,to_emitter):
 		super().__init__()
 		self.track = track
+		self.parent_self = parent_self
+		self.pc = pc
+		self.call_number = call_number
+		self.to_emitter = to_emitter
 		self.q = Simple_Queue()
 		self.p = pyaudio.PyAudio()
 		self.output_stream = self.p.open(format=pyaudio.paInt16,channels=2,rate=44800,output=True,frames_per_buffer=int(16384/4))
@@ -975,10 +1038,19 @@ class ClientTrack(MediaStreamTrack):
 
 		try:
 			frame = await self.track.recv()
+			self.q.put(frame)
 		except:
-			print(self.track.readyState)
 			print("MediaStreamError")
-			#print(traceback.format_exc())
+			self.q.put(None)
+			#loop = asyncio.get_event_loop()
+			#loop.call_later(1, self.stop_peer, loop)
+			if self.call_number == 1:
+				self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
+			elif self.call_number == 2:
+				self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
+			else:
+				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
+			print("---")
 			self.track = None
 			if self.run:
 				self.close_full()
@@ -987,13 +1059,13 @@ class ClientTrack(MediaStreamTrack):
 			else:
 				raise MediaStreamError
 				return None
-			
-		self.q.put(frame)
 		
 		
 	def hear_client(self):
 		while(self.run):
 			frame = self.q.get()
+			if frame is None:
+				break
 			packet_bytes = frame.to_ndarray().tobytes()
 			self.output_stream.write(packet_bytes)
 		
