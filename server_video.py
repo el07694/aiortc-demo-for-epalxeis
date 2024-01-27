@@ -395,6 +395,8 @@ class WebRtcServer(Process):
 		self.webcam = None
 		watch(self.webcam)
 		
+		self.stop_in_progress = [False,False,False]
+		
 		self.to_emitter = to_emitter
 		self.data_from_mother = from_mother
 	
@@ -482,6 +484,7 @@ class WebRtcServer(Process):
 			return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		
 		self.current_active_calls += 1
+		self.stop_in_progress[self.current_active_calls-1] = False
 		
 		name = params["name"]
 		surname = params["surname"]
@@ -705,6 +708,10 @@ class WebRtcServer(Process):
 				call_number = counter
 				break
 		print("call number found")
+		if self.stop_in_progress[call_number-1]:
+			return None
+		else:
+			self.stop_in_progress[call_number-1] = True
 		try:
 			del self.contact_details[call_number-1]
 			if pc is not None:
@@ -803,7 +810,7 @@ class WebRtcServer(Process):
 
 			try:
 				self.offers_in_progress[call_number-1] = False
-				await self.manage_call_end_threads[call_number-1]
+				#await self.manage_call_end_threads[call_number-1]
 				del self.manage_call_end_threads[call_number-1]
 			except:
 				print(traceback.format_exc())
@@ -891,13 +898,22 @@ class WebRtcServer(Process):
 					self.data_from_mother.get()
 				if data["type"] == "call-1" and data["call"] == "end":
 					for channel in self.channels:
-						channel.send('{"type":"closing-call-1"}')
+						try:
+							channel.send('{"type":"closing-call-1"}')
+						except:
+							print(traceback.format_exc())
 				elif data["type"] == "call-2" and data["call"] == "end":
 					for channel in self.channels:
-						channel.send('{"type":"closing-call-2"}')
+						try:
+							channel.send('{"type":"closing-call-2"}')
+						except:
+							print(traceback.format_exc())
 				else:
 					for channel in self.channels:
-						channel.send('{"type":"closing-call-3"}')
+						try:
+							channel.send('{"type":"closing-call-3"}')
+						except:
+							print(traceback.format_exc())
 				print("stop peer connection 897")
 				await self.stop_peer_connection(self.pcs[call_number-1])
 				break
@@ -1051,7 +1067,7 @@ class ClientTrack(MediaStreamTrack):
 			else:
 				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
 			print("---")
-			self.track = None
+			#self.track = None
 			if self.run:
 				self.close_full()
 				raise MediaStreamError
