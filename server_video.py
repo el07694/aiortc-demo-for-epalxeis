@@ -105,8 +105,8 @@ class Main:
 		
 		self.ui.client_1_accept.show()
 		self.ui.client_1_accept.clicked.connect(lambda state:self.answer_call_1(state))
-        
-        self.ui.client_1_video.clear()
+		
+		self.ui.client_1_video.clear()
 		
 		self.ui.client_1_reject.show()
 		self.ui.client_1_reject.clicked.connect(lambda state:self.reject_call_1(state))
@@ -159,8 +159,8 @@ class Main:
 		
 		self.ui.client_2_reject.show()
 		self.ui.client_2_reject.clicked.connect(lambda state:self.reject_call_2(state))
-        
-        self.ui.client_2_video.clear()
+		
+		self.ui.client_2_video.clear()
 		
 		self.ui.client_2_stop.hide()
 	
@@ -211,8 +211,8 @@ class Main:
 		
 		self.ui.client_3_reject.show()
 		self.ui.client_3_reject.clicked.connect(lambda state:self.reject_call_3(state))
-        
-        self.ui.client_3_video.clear()
+		
+		self.ui.client_3_video.clear()
 		
 		self.ui.client_3_stop.hide()
 	

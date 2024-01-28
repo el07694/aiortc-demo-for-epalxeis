@@ -31,7 +31,7 @@
 		
 	</head>
 	<body>
-		<div class="container col-md-11">
+		<div class="container col-md-7">
 		<h3>Διαδικτυακές κλήσεις video</h3>
 
 		<form class="<!--d-none-->">
@@ -53,18 +53,19 @@
 		  <tbody>
 			<tr>
 			  <td class="align-middle text-center">Εγώ:</td>
-			  <td><video id="client-video-1" width="320" controls="true" autoplay="true" muted></video></td>
-			  
 			  <td class="align-middle text-center">Παραγωγός Πολιτιστικής Κίνησης Επάλξεων:</td>
-			  <td><video id="server-video" width="320" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="server-audio" autoplay="true" controls="true"></audio></td>
-			  
 			</tr>
 			<tr>
-			  <td class="align-middle text-center" id="listener-2">Άλλος ακροατής: Όνομα Επώνυμο:</td>
-			  <td><video id="client-video-2" width="320" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-2" autoplay="true" controls="true"></audio></td>			  
-
-			  <td class="align-middle text-center" id="listener-3">Άλλος ακροατής: Όνομα Επώνυμο:</td>
-			  <td><video id="client-video-3" width="320" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-3" autoplay="true" controls="true"></audio></td>
+				<td><video id="client-video-1" class="col-md-12" controls="true" autoplay="true" muted></video</td>
+				<td><video id="server-video" class="col-md-12" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="server-audio" autoplay="true" controls="true"></audio></td>			  
+			</tr>
+			<tr>
+				<td class="align-middle text-center" id="listener-2">Άλλος ακροατής: Όνομα Επώνυμο:</td>
+				<td class="align-middle text-center" id="listener-3">Άλλος ακροατής: Όνομα Επώνυμο:</td>
+			</tr>
+			<tr>
+				<td><video id="client-video-2" class="col-md-12" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-2" autoplay="true" controls="true"></audio></td>			  
+				<td><video id="client-video-3" class="col-md-12" controls="true" autoplay="true"></video><audio style="width:100%;background:rgb(241,243,244)" id="client-audio-3" autoplay="true" controls="true"></audio></td>
 			</tr>
 		  </tbody>
 		</table>		
