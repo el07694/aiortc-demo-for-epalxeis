@@ -30,7 +30,6 @@ function createLocalPeerConnection(client_call_number,client_name,client_surname
 
 	clients_pc[clients_pc.length-1].addEventListener('track', function(evt) {
 		
-		console.log(client_call_number);
 		if (evt.track.kind == 'audio'){
 			if (local_call_number == 1){
 				if (client_call_number == 2){
@@ -103,9 +102,6 @@ function createPeerConnection() {
 
 	// connect audio
 	pc.addEventListener('track', function(evt) {
-		console.log("track");
-		console.log(evt.streams[0].getTracks());
-		//alert(pc.getTransceivers().length);
 		if (evt.track.kind == 'audio'){
 			$("#signal-audio").trigger("pause");
 			$("#signal-audio").currentTime = 0; // Reset time
@@ -146,12 +142,10 @@ function negotiate() {
 	}).then(function() {
 		// wait for ICE gathering to complete
 		return new Promise(function(resolve) {
-			console.log(pc.iceGatheringState);
 			if (pc.iceGatheringState === 'complete') {
 				resolve();
 			} else {
 				function checkState() {
-					console.log(pc.iceGatheringState);
 					if (pc.iceGatheringState === 'complete') {
 						pc.removeEventListener('icegatheringstatechange', checkState);
 						resolve();
@@ -182,7 +176,6 @@ function negotiate() {
 			return promise;
 		}catch (error){
 			stop_peer_connection();
-			console.log(error);
 		}
 	}).then(function(response) {
 		if (response.ok){
@@ -192,7 +185,6 @@ function negotiate() {
 		}
 	}).then(function(answer) {
 		if (answer.sdp == "" && answer.type == ""){
-			console.log("call rejected 167");
 			setTimeout(call_rejected, 1000);
 			return null;
 		}else{
@@ -200,8 +192,6 @@ function negotiate() {
 		}
 	}).catch(function(e) {
 		setTimeout(call_rejected, 1000);
-		//alert(e);
-		console.log(e);
 		return null;
 	});
 	
@@ -213,12 +203,10 @@ function negotiate_client(call_number) {
 	}).then(function() {
 		// wait for ICE gathering to complete
 		return new Promise(function(resolve) {
-			console.log(clients_pc[clients_pc.length-1].iceGatheringState);
 			if (clients_pc[clients_pc.length-1].iceGatheringState === 'complete') {
 				resolve();
 			} else {
 				function checkStateClient() {
-					console.log(clients_pc[clients_pc.length-1].iceGatheringState);
 					if (clients_pc[clients_pc.length-1].iceGatheringState === 'complete') {
 						clients_pc[clients_pc.length-1].removeEventListener('icegatheringstatechange', checkStateClient);
 						resolve();
@@ -248,8 +236,6 @@ function negotiate_client(call_number) {
 	}).then(function(answer) {
 		return clients_pc[clients_pc.length-1].setRemoteDescription(answer);
 	}).catch(function(e) {
-		//alert(e);
-		console.log(e);
 	});
 	
 }
@@ -257,14 +243,10 @@ function negotiate_client(call_number) {
 
 
 function call_rejected(){
-	console.log("call rejected");
-	console.log("251");
 	stop_peer_connection(false);
 }
 
 function stop_peer_connection(dc_message=true) {
-	console.log("stop peer connection");
-	//alert("stop peer connection");
 	$("#signal-audio").trigger("pause");
 	$("#signal-audio").currentTime = 0; // Reset time		
 	// send disconnect message because iceconnectionstate slow to go in failed or in closed state
@@ -272,11 +254,9 @@ function stop_peer_connection(dc_message=true) {
 		if (dc.readyState == "open"){
 			if (dc_message){
 				dc.send("disconnected");
-				console.log("sending disconnect message");
 			}
 		}
 	}catch (e){
-		console.log(e);
 	}
 	try{
 		if (local_stream["audio"] != null){
@@ -286,7 +266,6 @@ function stop_peer_connection(dc_message=true) {
 		}
 	}
 	catch (e){
-		console.log(e);
 	}
 	
 	$("#control_call_button").removeClass("d-none")
@@ -308,7 +287,6 @@ function stop_peer_connection(dc_message=true) {
 			pc.close();
 		}
 	}catch (e){
-		console.log(e);
 	}
 
 }
@@ -383,7 +361,6 @@ function start_client(client_call_number,client_name,client_surname){
 			});
 		}
 		clients_pc.splice(clients_pc.length-1, 1);
-		console.log("Local peer connection closed");
 		if (local_call_number == 1){
 			if (client_call_number ==2){
 				stream_client_2 = stream_client_3;
@@ -450,7 +427,6 @@ function start_client(client_call_number,client_name,client_surname){
 		});
 		return negotiate_client(client_call_number);
 		}, function(err) {
-			alert('Could not acquire media: ' + err);
 	});
 	*/
 }
@@ -470,14 +446,12 @@ function start(name,surname) {
 		
 	};
 	dc.onmessage = function(evt) {
-		console.log(evt.data);
 		data = JSON.parse(evt.data);
 		if(data["type"] == "closing-call-1"){
 			
 			if (local_call_number == 1){
 				if (closing == false){
 					closing = true;
-					console.log("470");
 					stop_peer_connection();
 				}
 			}else{
@@ -487,7 +461,6 @@ function start(name,surname) {
 			if (local_call_number == 2){
 				if (closing == false){
 					closing = true;
-					console.log("480");
 					stop_peer_connection();
 				}
 			}else{
@@ -497,7 +470,6 @@ function start(name,surname) {
 			if (local_call_number == 3){
 				if (closing == false){
 					closing = true;
-					console.log("489");
 					stop_peer_connection();
 				}
 			}else{
@@ -524,10 +496,7 @@ function start(name,surname) {
 	pc.onconnectionstatechange = (event) => {
 	   let newCS = pc.connectionState;
 	   if (newCS == "disconnected" || newCS == "failed" || newCS == "closed") {
-			console.log(newCS);//failed in most cases
-			console.log("517");
 			//stop_peer_connection();
-			console.log('pc createOffer restart');
 			//pc.createOffer({"offerToReceiveAudio":true,"offerToReceiveVideo":true,"iceRestart":true}).then(onCreateOfferSuccess, onCreateSessionDescriptionError);
 			stop_time_out = setTimeout(stop_with_time_out, 5000);	
 	   }else{
@@ -541,7 +510,6 @@ function start(name,surname) {
 	
 	pc.onclose = function() {
 		closing = true;
-		console.log("525");
 		stop_peer_connection(false);
 		
 		// close data channel
@@ -563,8 +531,6 @@ function start(name,surname) {
 			});
 		}
 		pc = null;
-		console.log("Local peer connection closed");
-		//alert("Local peer connection closed");
 	
 	};
 	
@@ -591,7 +557,6 @@ function start(name,surname) {
 				}
 				stream_client_1 = local_stream;
 			} catch(e){
-				//console.log(e);
 			}
 		});
 		return negotiate();
@@ -627,11 +592,11 @@ function onSetSessionDescriptionError(error) {
 }
 
 function onactive() {
-  console.log("on active event");
+  
 }
 
 function oninactive() {
-  console.log("on inactive event");
+  
 }
 
 $(document).ready(function(){
@@ -645,7 +610,6 @@ $(document).ready(function(){
 	
 	$("#stop_call_button").on( "click", function() {
 		closing = true;
-		console.log("595");
 		stop_peer_connection();
 	});
 	//debug code
@@ -666,7 +630,6 @@ function sleep(ms) {
 
 /*
 window.addEventListener("beforeunload", function (e) {
-	console.log("Before unload");
 	fetch('/cancel_call', {
 			body: JSON.stringify({}),
 			headers: {
