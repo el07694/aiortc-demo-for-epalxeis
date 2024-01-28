@@ -293,7 +293,7 @@ class Main:
 		return pixmap
 
 	def hide_server_web_camera(self):
-		self.ui.server_frame.clear()
+		self.ui.server_video.clear()
 		self.ui.server_frame.hide()
 
 	
@@ -480,6 +480,7 @@ class WebRtcServer(Process):
 		
 		
 		if self.current_active_calls == 3:
+			print("483")
 			return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		
 		self.current_active_calls += 1
@@ -528,10 +529,10 @@ class WebRtcServer(Process):
 				self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
 			await self.stop_peer_connection(pc)
 			if request.transport is None or request.transport.is_closing():
-				pass
+				print("532")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 			else:
-				pass
+				print("535")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		else:
 			data = self.data_from_mother.get()
@@ -672,7 +673,7 @@ class WebRtcServer(Process):
 				else:
 					self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
 				await self.stop_peer_connection(pc)
-				pass
+				print("676")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 
 	async def stop_client_peer_connection(self,pc):		
@@ -841,6 +842,11 @@ class WebRtcServer(Process):
 		for pc_i in self.clients_pcs:
 			if pc_i["call_number"] == call_number:
 				await self.stop_client_peer_connection(pc_i["pc"])
+                
+		while not self.data_from_mother.empty():
+			self.data_from_mother.get()
+                
+                
 		print("END")		
 		
 	# to be fixed

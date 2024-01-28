@@ -176,15 +176,16 @@ function negotiate() {
 			return promise;
 		}catch (error){
 			console.log(error);
-			stop_peer_connection();
+			stop_peer_connection();console.log(179);
 		}
 	}).then(function(response) {
 		if (response.ok){
 			return response.json();
 		}else{
-			stop_peer_connection(false);
+			stop_peer_connection(false);console.log(185);
 		}
 	}).then(function(answer) {
+		console.log(answer);
 		if (answer.sdp == "" && answer.type == ""){
 			call_rejected();
 			return null;
@@ -192,6 +193,7 @@ function negotiate() {
 			return pc.setRemoteDescription(answer);
 		}
 	}).catch(function(e) {
+		console.log(e);
 		call_rejected();
 		return null;
 	});
@@ -244,7 +246,7 @@ function negotiate_client(call_number) {
 
 
 function call_rejected(){
-	stop_peer_connection(false);
+	stop_peer_connection(false);console.log(247);
 }
 
 function stop_peer_connection(dc_message=true) {
@@ -453,7 +455,7 @@ function start(name,surname) {
 			if (local_call_number == 1){
 				if (closing == false){
 					closing = true;
-					stop_peer_connection();
+					stop_peer_connection();console.log(456);
 				}
 			}else{
 				stop_client_peer_connection(1);
@@ -462,7 +464,7 @@ function start(name,surname) {
 			if (local_call_number == 2){
 				if (closing == false){
 					closing = true;
-					stop_peer_connection();
+					stop_peer_connection();console.log(465);
 				}
 			}else{
 				stop_client_peer_connection(2);
@@ -471,7 +473,7 @@ function start(name,surname) {
 			if (local_call_number == 3){
 				if (closing == false){
 					closing = true;
-					stop_peer_connection();
+					stop_peer_connection();console.log(474);
 				}
 			}else{
 				stop_client_peer_connection(3);
@@ -511,7 +513,7 @@ function start(name,surname) {
 	
 	pc.onclose = function() {
 		closing = true;
-		stop_peer_connection(false);
+		stop_peer_connection(false);console.log(514);
 		
 		// close data channel
 		if (dc) {
@@ -581,7 +583,7 @@ function onCreateSessionDescriptionError(error){
 }
 
 function stop_with_time_out(){
-	stop_peer_connection(false);
+	stop_peer_connection(false);console.log(584);
 	stop_time_out = null;
 }
 
@@ -607,11 +609,11 @@ $(document).ready(function(){
 		surname = $("#surname").val();
 		closing = false;
 		controller = null;
-		start(name,surname)
+		start(name,surname);
 	});
 	$("#stop_call_button").on( "click", function() {
 		closing = true;
-		stop_peer_connection();
+		stop_peer_connection();console.log(614);
 	});
 	//debug code
 	/*$("#name").on( "focus",async function(){
