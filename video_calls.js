@@ -269,8 +269,7 @@ function stop_peer_connection(dc_message=true) {
 	catch (e){
 	}
 	
-	$("#control_call_button").removeClass("d-none")
-	$("#stop_call_button").addClass("d-none")
+	
 	
 	document.getElementById('client-video-1').srcObject = null;
 	document.getElementById('server-video').srcObject = null;
@@ -289,7 +288,8 @@ function stop_peer_connection(dc_message=true) {
 		}
 	}catch (e){
 	}
-
+	$("#control_call_button").removeClass("d-none")
+	$("#stop_call_button").addClass("d-none")
 }
 
 function stop_client_peer_connection(call_number) {
@@ -532,7 +532,8 @@ function start(name,surname) {
 			});
 		}
 		pc = null;
-	
+		$("#control_call_button").removeClass("d-none");
+		$("#stop_call_button").addClass("d-none");
 	};
 	
 	

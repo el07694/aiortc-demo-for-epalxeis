@@ -105,6 +105,8 @@ class Main:
 		
 		self.ui.client_1_accept.show()
 		self.ui.client_1_accept.clicked.connect(lambda state:self.answer_call_1(state))
+        
+        self.ui.client_1_video.clear()
 		
 		self.ui.client_1_reject.show()
 		self.ui.client_1_reject.clicked.connect(lambda state:self.reject_call_1(state))
@@ -157,6 +159,8 @@ class Main:
 		
 		self.ui.client_2_reject.show()
 		self.ui.client_2_reject.clicked.connect(lambda state:self.reject_call_2(state))
+        
+        self.ui.client_2_video.clear()
 		
 		self.ui.client_2_stop.hide()
 	
@@ -207,6 +211,8 @@ class Main:
 		
 		self.ui.client_3_reject.show()
 		self.ui.client_3_reject.clicked.connect(lambda state:self.reject_call_3(state))
+        
+        self.ui.client_3_video.clear()
 		
 		self.ui.client_3_stop.hide()
 	
@@ -287,6 +293,7 @@ class Main:
 		return pixmap
 
 	def hide_server_web_camera(self):
+		self.ui.server_frame.clear()
 		self.ui.server_frame.hide()
 
 	
@@ -559,8 +566,10 @@ class WebRtcServer(Process):
 				@pc.on("datachannel")
 				async def on_datachannel(channel):
 					self.channels.append(channel)
-					channel.send('{"type":"local_call_number","call_number":"'+str(self.current_active_calls)+'"}')
-
+					try:
+						channel.send('{"type":"local_call_number","call_number":"'+str(self.current_active_calls)+'"}')
+					except:
+						pass
 					counter = 1
 					for pc_i in self.pcs[:-1]:
 						try:
@@ -695,7 +704,6 @@ class WebRtcServer(Process):
 		if pc.is_closed:
 			return None
 		pc.is_closed = True
-		pass
 		call_number = 0
 		counter = 0
 		for pc_i in self.pcs:
@@ -714,6 +722,7 @@ class WebRtcServer(Process):
 				try:
 					pass
 					pass
+					print("closing pc")
 					await pc.close()
 					pass
 					del self.pcs[call_number-1]
@@ -819,7 +828,10 @@ class WebRtcServer(Process):
 		
 		counter = 1
 		for channel in self.channels:
-			channel.send('{"type":"local_call_number","call_number":"'+str(counter)+'"}')
+			try:
+				channel.send('{"type":"local_call_number","call_number":"'+str(counter)+'"}')
+			except:
+				pass
 			counter += 1
 			
 		for pc_i in self.clients_pcs:
