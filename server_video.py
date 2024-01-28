@@ -45,8 +45,6 @@ import traceback
 ngrok.set_auth_token("1kxaH4jyih9qTuyTBE0V6bzYbnq_nVaCNY5wwUriYY5oiLDr")
 import socket
 
-from watchpoints import watch
-
 stream_offer = None
 pc = None
 micTrack = None
@@ -367,7 +365,6 @@ class WebRtcServer(Process):
 		
 		self.videoTrack = None
 		
-		watch(self.videoTrack)
 		
 		
 		self.video_blackHole = None
@@ -390,7 +387,6 @@ class WebRtcServer(Process):
 		self.clients_pcs = []
 		
 		self.webcam = None
-		watch(self.webcam)
 		
 		self.stop_in_progress = [False,False,False]
 		
