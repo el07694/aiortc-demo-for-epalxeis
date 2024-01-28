@@ -563,13 +563,21 @@ class WebRtcServer(Process):
 
 					counter = 1
 					for pc_i in self.pcs[:-1]:
-						channel.send('{"type":"new-client","call_number":"'+str(counter)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
-						counter += 1
+						try:
+							channel.send('{"type":"new-client","call_number":"'+str(counter)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
+							counter += 1
+						except:
+							await self.stop_peer_connection(self.pcs[counter-1])
+						
 
 					counter = 0
 					for pc_i in self.pcs[:-1]:
-						self.channels[counter].send('{"type":"new-client","call_number":"'+str(self.current_active_calls)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
-						counter += 1
+						try:
+							self.channels[counter].send('{"type":"new-client","call_number":"'+str(self.current_active_calls)+'","name":"'+self.contact_details[counter-1]["name"]+'","surname":"'+self.contact_details[counter-1]["surname"]+'"}')
+							counter += 1
+						except:
+							await self.stop_peer_connection(self.pcs[counter-1])
+						
 
 					@channel.on("message")
 					async def on_message(message):
