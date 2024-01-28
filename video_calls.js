@@ -175,6 +175,7 @@ function negotiate() {
 			}));
 			return promise;
 		}catch (error){
+			console.log(error);
 			stop_peer_connection();
 		}
 	}).then(function(response) {
@@ -185,13 +186,13 @@ function negotiate() {
 		}
 	}).then(function(answer) {
 		if (answer.sdp == "" && answer.type == ""){
-			setTimeout(call_rejected, 1000);
+			call_rejected();
 			return null;
 		}else{
 			return pc.setRemoteDescription(answer);
 		}
 	}).catch(function(e) {
-		setTimeout(call_rejected, 1000);
+		call_rejected();
 		return null;
 	});
 	
@@ -607,7 +608,6 @@ $(document).ready(function(){
 		controller = null;
 		start(name,surname)
 	});
-	
 	$("#stop_call_button").on( "click", function() {
 		closing = true;
 		stop_peer_connection();
