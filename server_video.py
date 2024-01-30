@@ -71,7 +71,9 @@ class Main:
 		self.ui.ngrok_url.setText(ngrok_url)
 
 		self.mother_pipe, self.child_pipe = Pipe()
-		self.queue = Queue()
+		self.call_1_queue = Queue()
+		self.call_2_queue = Queue()
+		self.call_3_queue = Queue()
 		self.emitter = Emitter(self.mother_pipe)
 		
 		self.emitter.call_1_offering.connect(lambda name,surname:self.new_call_1(name,surname))
@@ -90,7 +92,7 @@ class Main:
 		self.emitter.hide_server_web_camera.connect(lambda:self.hide_server_web_camera())
 		self.emitter.start()		
 		
-		self.aiohttp_server = WebRtcServer(self.child_pipe,self.queue)
+		self.aiohttp_server = WebRtcServer(self.child_pipe,self.call_1_queue,self.call_2_queue,self.call_3_queue)
 		self.aiohttp_server.start()
 		
 		self.MainWindow.closeEvent = lambda event:self.closeEvent(event)
@@ -118,7 +120,7 @@ class Main:
 		self.ui.client_1_reject.hide()
 		self.ui.client_1_stop.show()
 		self.ui.client_1_stop.clicked.connect(lambda state:self.end_call_1(state))
-		self.queue.put({"type":"call-1","call":"answer"})
+		self.call_1_queue.put({"type":"call-1","call":"answer"})
 		
 	def reject_call_1(self,state):
 		self.ui.client_1_frame.hide()
@@ -126,7 +128,7 @@ class Main:
 		self.ui.client_1_accept.hide()
 		self.ui.client_1_reject.hide()
 		self.ui.client_1_stop.hide()
-		self.queue.put({"type":"call-1","call":"reject"})
+		self.call_1_queue.put({"type":"call-1","call":"reject"})
 		
 	def end_call_1(self,state):
 		self.ui.client_1_frame.hide()
@@ -134,7 +136,7 @@ class Main:
 		self.ui.client_1_accept.hide()
 		self.ui.client_1_reject.hide()
 		self.ui.client_1_stop.hide()
-		self.queue.put({"type":"call-1","call":"end"})
+		self.call_1_queue.put({"type":"call-1","call":"end"})
 	
 	def call_1_status(self,status):
 		if status == "closed-by-client" or status == "closed-by-server":
@@ -169,7 +171,7 @@ class Main:
 		self.ui.client_2_reject.hide()
 		self.ui.client_2_stop.show()
 		self.ui.client_2_stop.clicked.connect(lambda state:self.end_call_2(state))
-		self.queue.put({"type":"call-2","call":"answer"})
+		self.call_2_queue.put({"type":"call-2","call":"answer"})
 		
 	def reject_call_2(self,state):
 		self.ui.client_2_frame.hide()
@@ -177,7 +179,7 @@ class Main:
 		self.ui.client_2_accept.hide()
 		self.ui.client_2_reject.hide()
 		self.ui.client_2_stop.hide()
-		self.queue.put({"type":"call-2","call":"reject"})
+		self.call_2_queue.put({"type":"call-2","call":"reject"})
 		
 	def end_call_2(self,state):
 		self.ui.client_2_frame.hide()
@@ -185,7 +187,7 @@ class Main:
 		self.ui.client_2_accept.hide()
 		self.ui.client_2_reject.hide()
 		self.ui.client_2_stop.hide()
-		self.queue.put({"type":"call-2","call":"end"})
+		self.call_2_queue.put({"type":"call-2","call":"end"})
 	
 	def call_2_status(self,status):
 		if status == "closed-by-client" or status == "closed-by-server":
@@ -221,7 +223,7 @@ class Main:
 		self.ui.client_3_reject.hide()
 		self.ui.client_3_stop.show()
 		self.ui.client_3_stop.clicked.connect(lambda state:self.end_call_3(state))
-		self.queue.put({"type":"call-3","call":"answer"})
+		self.call_3_queue.put({"type":"call-3","call":"answer"})
 		
 	def reject_call_3(self,state):
 		self.ui.client_3_frame.hide()
@@ -229,7 +231,7 @@ class Main:
 		self.ui.client_3_accept.hide()
 		self.ui.client_3_reject.hide()
 		self.ui.client_3_stop.hide()
-		self.queue.put({"type":"call-3","call":"reject"})
+		self.call_3_queue.put({"type":"call-3","call":"reject"})
 		
 	def end_call_3(self,state):
 		self.ui.client_3_frame.hide()
@@ -237,7 +239,7 @@ class Main:
 		self.ui.client_3_accept.hide()
 		self.ui.client_3_reject.hide()
 		self.ui.client_3_stop.hide()
-		self.queue.put({"type":"call-3","call":"end"})
+		self.call_3_queue.put({"type":"call-3","call":"end"})
 	
 	def call_3_status(self,status):
 		if status == "closed-by-client" or status == "closed-by-server":
@@ -355,7 +357,7 @@ class Emitter(QThread):
 				self.hide_server_web_camera.emit()
 
 class WebRtcServer(Process):
-	def __init__(self, to_emitter, from_mother):
+	def __init__(self, to_emitter, call_1_queue,call_2_queue,call_3_queue):
 		super().__init__()
 		if getattr(sys, 'frozen', False):
 			self.ROOT = os.path.dirname(sys.executable)
@@ -398,7 +400,9 @@ class WebRtcServer(Process):
 		self.stop_in_progress = [False,False,False]
 		
 		self.to_emitter = to_emitter
-		self.data_from_mother = from_mother
+		self.call_1_queue = call_1_queue
+		self.call_2_queue = call_2_queue
+		self.call_3_queue = call_3_queue
 	
 	def run(self):
 		hostname = socket.gethostname()
@@ -480,7 +484,6 @@ class WebRtcServer(Process):
 		
 		
 		if self.current_active_calls == 3:
-			print("483")
 			return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		
 		self.current_active_calls += 1
@@ -497,15 +500,18 @@ class WebRtcServer(Process):
 		
 		if self.current_active_calls == 1:
 			self.to_emitter.send({"type":"call_1_offering","name":name,"surname":surname})
+			data_from_mother = self.call_1_queue
 		elif self.current_active_calls == 2:
 			self.to_emitter.send({"type":"call_2_offering","name":name,"surname":surname})
+			data_from_mother = self.call_2_queue
 		else:
 			self.to_emitter.send({"type":"call_3_offering","name":name,"surname":surname})
+			data_from_mother = self.call_3_queue
 
 		pc = None
 
 		timer = 0
-		while(timer<30 and self.data_from_mother.qsize()==0 and self.calls_answered[self.current_active_calls-1] == False):
+		while(timer<30 and data_from_mother.qsize()==0 and self.calls_answered[self.current_active_calls-1] == False):
 			if request.transport is None or request.transport.is_closing():
 				try:
 					request.transport.close()
@@ -516,11 +522,10 @@ class WebRtcServer(Process):
 			timer+=0.1
 			await asyncio.sleep(0.1)
 		self.calls_answered[self.current_active_calls-1] = True
-		if self.data_from_mother.qsize() == 0:
+		if data_from_mother.qsize() == 0:
 			#reject offer
-			while not self.data_from_mother.empty():
-				self.data_from_mother.get()
-			pass
+			while not data_from_mother.empty():
+				data_from_mother.get()
 			if self.current_active_calls == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-server"})
 			elif self.current_active_calls == 2:
@@ -529,16 +534,14 @@ class WebRtcServer(Process):
 				self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
 			await self.stop_peer_connection(pc)
 			if request.transport is None or request.transport.is_closing():
-				print("532")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 			else:
-				print("535")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 		else:
-			data = self.data_from_mother.get()
+			data = data_from_mother.get()
 			if (data["type"] == "call-1" and data["call"] == "answer") or (data["type"] == "call-2" and data["call"] == "answer") or (data["type"] == "call-3" and data["call"] == "answer"):
-				while not self.data_from_mother.empty():
-					self.data_from_mother.get()
+				while not data_from_mother.empty():
+					data_from_mother.get()
 
 				pc = RTCPeerConnection()
 				pc.is_closed = False
@@ -664,8 +667,8 @@ class WebRtcServer(Process):
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}))
 			else:
 				#reject call
-				while not self.data_from_mother.empty():
-					self.data_from_mother.get()
+				while not data_from_mother.empty():
+					data_from_mother.get()
 				if self.current_active_calls == 1:
 					self.to_emitter.send({"type":"call-1-status","status":"closed-by-server"})
 				elif self.current_active_calls == 2:
@@ -673,7 +676,6 @@ class WebRtcServer(Process):
 				else:
 					self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
 				await self.stop_peer_connection(pc)
-				print("676")
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
 
 	async def stop_client_peer_connection(self,pc):		
@@ -712,7 +714,13 @@ class WebRtcServer(Process):
 			if id(pc) == id(pc_i):
 				call_number = counter
 				break
-		pass
+		if call_number == 1:
+			data_from_mother = self.call_1_queue
+		elif call_number == 2:
+			data_from_mother = self.call_2_queue
+		else:
+			data_from_mother = self.call_3_queue
+			
 		if self.stop_in_progress[call_number-1]:
 			return None
 		else:
@@ -721,11 +729,7 @@ class WebRtcServer(Process):
 			del self.contact_details[call_number-1]
 			if pc is not None:
 				try:
-					pass
-					pass
-					print("closing pc")
 					await pc.close()
-					pass
 					del self.pcs[call_number-1]
 				except Exception as e:
 					pass
@@ -842,11 +846,11 @@ class WebRtcServer(Process):
 		for pc_i in self.clients_pcs:
 			if pc_i["call_number"] == call_number:
 				await self.stop_client_peer_connection(pc_i["pc"])
-                
-		while not self.data_from_mother.empty():
-			self.data_from_mother.get()
-                
-                
+				
+		while not data_from_mother.empty():
+			data_from_mother.get()
+				
+				
 		print("END")		
 		
 	# to be fixed
@@ -886,15 +890,22 @@ class WebRtcServer(Process):
 			self.chunk_number += 1
 
 	async def manage_call_end(self,loop,call_number):
+		if call_number == 1:
+			data_from_mother = self.call_1_queue
+		elif call_number == 2:
+			data_from_mother = self.call_2_queue
+		else:
+			data_from_mother = self.call_3_queue
+			
 		asyncio.set_event_loop(loop)
 		while(self.offers_in_progress[call_number-1]):
-			qsize = self.data_from_mother.qsize()
+			qsize = data_from_mother.qsize()
 			if qsize == 0:
 				await asyncio.sleep(1)
 			else:
-				data = self.data_from_mother.get()
-				while not self.data_from_mother.empty():
-					self.data_from_mother.get()
+				data = data_from_mother.get()
+				while not data_from_mother.empty():
+					data_from_mother.get()
 				if data["type"] == "call-1" and data["call"] == "end":
 					for channel in self.channels:
 						try:
