@@ -45,6 +45,8 @@ import traceback
 ngrok.set_auth_token("1kxaH4jyih9qTuyTBE0V6bzYbnq_nVaCNY5wwUriYY5oiLDr")
 import socket
 
+#from asyncqt import QEventLoop, asyncSlot, asyncClose
+
 stream_offer = None
 pc = None
 micTrack = None
@@ -298,7 +300,6 @@ class Main:
 		self.ui.server_video.clear()
 		self.ui.server_frame.hide()
 
-	
 	def closeEvent(self,event):
 		#try:
 		#	response = requests.post('http://192.168.1.188:8080/shutdown', timeout=30)
@@ -460,10 +461,13 @@ class WebRtcServer(Process):
 		pc = RTCPeerConnection()
 		self.clients_pcs.append({"call_number_sender":call_number_sender,"call_number":call_number,"pc":pc})
 
+
 		@pc.on("connectionstatechange")
-		async def on_iceconnectionstatechange():
-			if pc.connectionState == "closed" or pc.connectionState == "failed":
+		async def on_connectionstatechange():
+			print("Connection state is %s" % pc.connectionState)
+			if pc.connectionState == "failed":
 				await self.stop_client_peer_connection(pc)
+
 		
 		pc.addTrack(MediaRelay().subscribe(self.clients_audio_track[call_number-1]))
 		pc.addTrack(MediaRelay().subscribe(self.clients_video_track[call_number-1]))
@@ -548,24 +552,12 @@ class WebRtcServer(Process):
 				self.pcs.append(pc)
 				self.contact_details.append({"name":name,"surname":surname})
 
+
 				@pc.on("connectionstatechange")
 				async def on_connectionstatechange():
-					if pc.connectionState == "closed" or pc.connectionState == "failed":
-						for pc_i in self.pcs:
-							if id(pc_i) == id(pc):
-								await self.stop_peer_connection(pc)
-								break
-
-				@pc.on("iceconnectionstatechange")
-				async def on_iceconnectionstatechange():
-					pass
-					if pc.iceConnectionState == "failed" or pc.iceConnectionState == "closed":
-						for pc_i in self.pcs:
-							if id(pc_i) == id(pc):
-								await self.stop_peer_connection(pc)
-								break
-
-
+					print("Connection state is "+str(pc.connectionState))
+					if pc.connectionState == "failed":
+						await self.stop_peer_connection(pc)
 
 				@pc.on("datachannel")
 				async def on_datachannel(channel):
@@ -597,7 +589,7 @@ class WebRtcServer(Process):
 						if message == "disconnected":
 							await self.stop_peer_connection(pc)
 
-
+					'''
 					async def monitor():
 						while True:
 							if channel.transport.transport.state == "closed":
@@ -606,7 +598,7 @@ class WebRtcServer(Process):
 								break
 							await asyncio.sleep(5)
 					asyncio.ensure_future(monitor())
-
+					'''
 
 				
 				#audio from server to client
@@ -729,7 +721,9 @@ class WebRtcServer(Process):
 			del self.contact_details[call_number-1]
 			if pc is not None:
 				try:
+					print("before await pc.close()")
 					await pc.close()
+					print("after await pc.close()")
 					del self.pcs[call_number-1]
 				except Exception as e:
 					pass
@@ -739,23 +733,23 @@ class WebRtcServer(Process):
 					pass
 				except:
 					pass
-			
+			print("Channels closed")
 			if self.stream_offer is not None:
 				if self.current_active_calls == 1:
 					self.stream_offer.stop()
 					self.stream_offer.stop_offering()
 					del self.stream_offer
 					self.stream_offer = None
-					pass
+					print("Audio Stream closed")
 			try:
 				if self.blackHoles[call_number-1] is not None:
 					await self.blackHoles[call_number-1].stop()
 					self.blackHoles[call_number-1] = None
 					del self.blackHoles[call_number-1]
-					pass
+					print("Audio black hole closed")
 			except:
 				pass
-			
+			print("Stream offer closed")
 			try:
 				if self.micTracks[call_number-1] is not None:
 					self.micTracks[call_number-1].close_full()
@@ -777,7 +771,7 @@ class WebRtcServer(Process):
 						pass
 			except:
 				pass
-				
+			print("Remote audio and video closed")
 			if call_number == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-client"})
 			elif call_number == 2:
@@ -871,6 +865,7 @@ class WebRtcServer(Process):
 		self.output_stream.start_stream()
 		self.packet_time = 125
 
+
 		sine_segment = generators.Sine(1000).to_audio_segment()
 		sine_segment = sine_segment.set_frame_rate(44800)
 		sine_segment = sine_segment[(1000-int(self.packet_time))/2:self.packet_time+(1000-int(self.packet_time))/2]
@@ -886,6 +881,7 @@ class WebRtcServer(Process):
 				else:
 					slice = self.silent_segment
 					self.chunk_number = 0
+					
 			self.output_stream.write(slice.raw_data)
 			self.chunk_number += 1
 
@@ -958,6 +954,14 @@ class Server_Stream_Offer(MediaStreamTrack):
 		
 		self.run = True
 		
+		self.packet_time = 1000*0.020
+
+		sine_segment = generators.Sine(1000).to_audio_segment()
+		sine_segment = sine_segment.set_frame_rate(44800)
+		sine_segment = sine_segment[(1000-int(self.packet_time))/2:self.packet_time+(1000-int(self.packet_time))/2]
+		self.silent_segment = sine_segment-200
+
+		
 		self.read_from_microphone_thread = threading.Thread(target=self.read_from_microphone)
 		self.read_from_microphone_thread.start()
 		
@@ -971,18 +975,23 @@ class Server_Stream_Offer(MediaStreamTrack):
 
 	def read_from_microphone(self):
 		while(self.run):
-			in_data = self.input_stream.read(int(8000*0.020),exception_on_overflow = False)			   
-			slice = AudioSegment(in_data, sample_width=2, frame_rate=8000, channels=2)
-			self.q.put(slice.raw_data)
+			try:
+				in_data = self.input_stream.read(int(8000*0.020),exception_on_overflow = False)			   
+				slice = AudioSegment(in_data, sample_width=2, frame_rate=8000, channels=2)
+				self.q.put(slice.raw_data)
+			except:
+				pass
 
 	def stop_offering(self):
 		try:
 			self.run = False
+			print("stop_offering 976")
+			self.read_from_microphone_thread.join()
 			self.input_stream.stop_stream()
 			self.input_stream.close()
-			self.read_from_microphone_thread.join()
+			print("stop_offering")
 		except Exception as e:
-			pass
+			print(traceback.format_exc())
 
 class WebCamera(MediaStreamTrack):
 	kind = "video"
@@ -1023,16 +1032,13 @@ class ClientWebCamera(MediaStreamTrack):
 				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[pil_image]})
 			return None
 		except:
-			if self.call_number == 1:
-				self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
-			elif self.call_number == 2:
-				self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
-			else:
-				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
+			#if self.call_number == 1:
+			#	self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
+			#elif self.call_number == 2:
+			#	self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
+			#else:
+			#	self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
 			raise MediaStreamError
-
-	async def stop_peer(self):
-		await self.parent_self.stop_peer_connection(self.pc)				
 
 			
 class ClientTrack(MediaStreamTrack):
@@ -1062,12 +1068,12 @@ class ClientTrack(MediaStreamTrack):
 			self.q.put(frame)
 		except:
 			self.q.put(None)
-			if self.call_number == 1:
-				self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
-			elif self.call_number == 2:
-				self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
-			else:
-				self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
+			#if self.call_number == 1:
+			#	self.to_emitter.send({"type":"client-1-web-camera-frame","pil_image":[None]})
+			#elif self.call_number == 2:
+			#	self.to_emitter.send({"type":"client-2-web-camera-frame","pil_image":[None]})
+			#else:
+			#	self.to_emitter.send({"type":"client-3-web-camera-frame","pil_image":[None]})			 
 			if self.run:
 				self.close_full()
 				raise MediaStreamError
@@ -1099,8 +1105,11 @@ class AudioTrack(MediaStreamTrack):
 		self.track = track
 
 	async def recv(self):
-		frame = await self.track.recv()			 
-		return frame
+		try:
+			frame = await self.track.recv()			 
+			return frame
+		except:
+			raise MediaStreamError
 		
 class VideoTrack(MediaStreamTrack):
 	kind = "video"
@@ -1110,8 +1119,11 @@ class VideoTrack(MediaStreamTrack):
 		self.track = track
 
 	async def recv(self):
-		frame = await self.track.recv()			 
-		return frame		
+		try:
+			frame = await self.track.recv()			 
+			return frame		
+		except:
+			raise MediaStreamError
 
 
 if __name__ == "__main__":
@@ -1123,4 +1135,3 @@ if __name__ == "__main__":
 	#tunnel = ngrok.connect(str(ip_address)+":8080", "http")
 	tunnel = ngrok.connect(str(ip_address), "http","host_header:rewrite")
 	program = Main(tunnel.public_url)
-	
