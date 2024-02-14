@@ -155,13 +155,3 @@ class Ui_MainWindow(object):
         self.client_3_reject.setText(_translate("MainWindow", "Απόρριψη κλήσης"))
         self.client_3_label.setText(_translate("MainWindow", "Τηλεφωνική κλήση από: ... ..."))
         self.client_3_stop.setText(_translate("MainWindow", "Τερματισμός κλήσης"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec_())

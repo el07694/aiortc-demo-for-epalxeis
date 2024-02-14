@@ -124,6 +124,11 @@ class Main:
 		self.ui.client_1_stop.clicked.connect(lambda state:self.end_call_1(state))
 		self.call_1_queue.put({"type":"call-1","call":"answer"})
 		
+		self.call_1_timer = QtCore.QTimer()
+		self.call_1_timer.timeout.connect(lambda:self.end_call_1(None))
+		self.call_1_timer.setSingleShot(True)
+		self.call_1_timer.start(7000)
+		
 	def reject_call_1(self,state):
 		self.ui.client_1_frame.hide()
 		self.ui.client_1_label.hide()
@@ -174,6 +179,12 @@ class Main:
 		self.ui.client_2_stop.show()
 		self.ui.client_2_stop.clicked.connect(lambda state:self.end_call_2(state))
 		self.call_2_queue.put({"type":"call-2","call":"answer"})
+		
+		self.call_2_timer = QtCore.QTimer()
+		self.call_2_timer.timeout.connect(lambda:self.end_call_2(None))
+		self.call_2_timer.setSingleShot(True)
+		self.call_2_timer.start(7000)
+
 		
 	def reject_call_2(self,state):
 		self.ui.client_2_frame.hide()
@@ -227,6 +238,12 @@ class Main:
 		self.ui.client_3_stop.clicked.connect(lambda state:self.end_call_3(state))
 		self.call_3_queue.put({"type":"call-3","call":"answer"})
 		
+		self.call_3_timer = QtCore.QTimer()
+		self.call_3_timer.timeout.connect(lambda:self.end_call_3(None))
+		self.call_3_timer.setSingleShot(True)
+		self.call_3_timer.start(7000)
+
+		
 	def reject_call_3(self,state):
 		self.ui.client_3_frame.hide()
 		self.ui.client_3_label.hide()
@@ -264,6 +281,13 @@ class Main:
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_1_video.setPixmap(pixmap)
 		self.ui.client_1_video.show()
+		
+		self.call_1_timer.stop()
+		self.call_1_timer = QtCore.QTimer()
+		self.call_1_timer.timeout.connect(lambda:self.end_call_1(None))
+		self.call_1_timer.setSingleShot(True)
+		self.call_1_timer.start(7000)
+
 
 	def client_2_web_camera_packet(self,pil_image):
 		if pil_image is None:
@@ -271,6 +295,13 @@ class Main:
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_2_video.setPixmap(pixmap)
 		self.ui.client_2_video.show()
+
+		self.call_2_timer.stop()
+		self.call_2_timer = QtCore.QTimer()
+		self.call_2_timer.timeout.connect(lambda:self.end_call_2(None))
+		self.call_2_timer.setSingleShot(True)
+		self.call_2_timer.start(7000)
+
 		
 	def client_3_web_camera_packet(self,pil_image):
 		if pil_image is None:
@@ -278,6 +309,13 @@ class Main:
 		pixmap = self.pil2pixmap(pil_image)
 		self.ui.client_3_video.setPixmap(pixmap)
 		self.ui.client_3_video.show()
+
+		self.call_3_timer.stop()
+		self.call_3_timer = QtCore.QTimer()
+		self.call_3_timer.timeout.connect(lambda:self.end_call_3(None))
+		self.call_3_timer.setSingleShot(True)
+		self.call_3_timer.start(7000)
+
 
 	def pil2pixmap(self, im):
 
@@ -464,7 +502,6 @@ class WebRtcServer(Process):
 
 		@pc.on("connectionstatechange")
 		async def on_connectionstatechange():
-			print("Connection state is %s" % pc.connectionState)
 			if pc.connectionState == "failed":
 				await self.stop_client_peer_connection(pc)
 
@@ -483,7 +520,6 @@ class WebRtcServer(Process):
 
 
 	async def offer(self,request):	
-		print("Total server - client peer connections: "+str(self.current_active_calls))
 		params = await request.json()
 		
 		
@@ -555,7 +591,6 @@ class WebRtcServer(Process):
 
 				@pc.on("connectionstatechange")
 				async def on_connectionstatechange():
-					print("Connection state is "+str(pc.connectionState))
 					if pc.connectionState == "failed":
 						await self.stop_peer_connection(pc)
 
@@ -721,9 +756,7 @@ class WebRtcServer(Process):
 			del self.contact_details[call_number-1]
 			if pc is not None:
 				try:
-					print("before await pc.close()")
 					await pc.close()
-					print("after await pc.close()")
 					del self.pcs[call_number-1]
 				except Exception as e:
 					pass
@@ -733,23 +766,19 @@ class WebRtcServer(Process):
 					pass
 				except:
 					pass
-			print("Channels closed")
 			if self.stream_offer is not None:
 				if self.current_active_calls == 1:
 					self.stream_offer.stop()
 					self.stream_offer.stop_offering()
 					del self.stream_offer
 					self.stream_offer = None
-					print("Audio Stream closed")
 			try:
 				if self.blackHoles[call_number-1] is not None:
 					await self.blackHoles[call_number-1].stop()
 					self.blackHoles[call_number-1] = None
 					del self.blackHoles[call_number-1]
-					print("Audio black hole closed")
 			except:
 				pass
-			print("Stream offer closed")
 			try:
 				if self.micTracks[call_number-1] is not None:
 					self.micTracks[call_number-1].close_full()
@@ -771,7 +800,6 @@ class WebRtcServer(Process):
 						pass
 			except:
 				pass
-			print("Remote audio and video closed")
 			if call_number == 1:
 				self.to_emitter.send({"type":"call-1-status","status":"closed-by-client"})
 			elif call_number == 2:
@@ -845,7 +873,6 @@ class WebRtcServer(Process):
 			data_from_mother.get()
 				
 				
-		print("END")		
 		
 	# to be fixed
 	async def cancel_call(self,request):
@@ -985,12 +1012,11 @@ class Server_Stream_Offer(MediaStreamTrack):
 	def stop_offering(self):
 		try:
 			self.run = False
-			print("stop_offering 976")
 			self.read_from_microphone_thread.join()
 			self.input_stream.stop_stream()
 			self.input_stream.close()
-			print("stop_offering")
 		except Exception as e:
+			pass
 			print(traceback.format_exc())
 
 class WebCamera(MediaStreamTrack):
@@ -1096,35 +1122,6 @@ class ClientTrack(MediaStreamTrack):
 		self.hear_client_thread.join()
 		self.output_stream.stop_stream()
 		self.output_stream.close()
-
-class AudioTrack(MediaStreamTrack):
-	kind = "audio"
-
-	def __init__(self, track):
-		super().__init__()	# don't forget this!
-		self.track = track
-
-	async def recv(self):
-		try:
-			frame = await self.track.recv()			 
-			return frame
-		except:
-			raise MediaStreamError
-		
-class VideoTrack(MediaStreamTrack):
-	kind = "video"
-
-	def __init__(self, track):
-		super().__init__()	# don't forget this!
-		self.track = track
-
-	async def recv(self):
-		try:
-			frame = await self.track.recv()			 
-			return frame		
-		except:
-			raise MediaStreamError
-
 
 if __name__ == "__main__":
 	if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
