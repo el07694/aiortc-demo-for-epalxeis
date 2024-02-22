@@ -280,7 +280,10 @@ class Main:
 		#	response = requests.post('http://192.168.1.188:8080/shutdown', timeout=30)
 		#except:
 		#	pass
-		os.system("taskkill /f /im ngrok.exe")
+		si = subprocess.STARTUPINFO()
+		si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+		#si.wShowWindow = subprocess.SW_HIDE # default
+		subprocess.call('taskkill /f /im ngrok.exe', startupinfo=si)
 		self.aiohttp_server.terminate()
 		event.accept()
 
@@ -915,7 +918,10 @@ class ClientTrack(MediaStreamTrack):
 if __name__ == "__main__":
 	if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
 		freeze_support()
-	os.system("taskkill /f /im ngrok.exe")
+	si = subprocess.STARTUPINFO()
+	si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+	#si.wShowWindow = subprocess.SW_HIDE # default
+	subprocess.call('taskkill /f /im ngrok.exe', startupinfo=si)
 	hostname = socket.gethostname()
 	ip_address = socket.gethostbyname(hostname)
 	tunnel = ngrok.connect(str(ip_address), "http","host_header:rewrite")
