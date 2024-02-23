@@ -31,6 +31,7 @@ from pyngrok.conf import PyngrokConfig
 
 from pygrabber.dshow_graph import FilterGraph
 import traceback
+import subprocess
 
 #conf.set_default(PyngrokConfig(region="au", ngrok_path=os.path.abspath("ngrok.exe")))
 ngrok.set_auth_token("1kxaH4jyih9qTuyTBE0V6bzYbnq_nVaCNY5wwUriYY5oiLDr")
@@ -559,9 +560,11 @@ class WebRtcServer(Process):
 				answer = await self.pcs[call_number]["pc"].createAnswer()
 				await self.pcs[call_number]["pc"].setLocalDescription(answer)
 
-				loop = asyncio.get_event_loop()
-				task = asyncio.ensure_future(self.manage_call_end(loop,peer_connection["uid"]))
+				#loop = asyncio.get_event_loop()
+				task = asyncio.ensure_future(self.manage_call_end(peer_connection["uid"]))
 				self.pcs[call_number]["manage_call_end_thread"] = task
+				
+				#asyncio.ensure_future(self.statistics(peer_connection["pc"]))
 				
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": self.pcs[call_number]["pc"].localDescription.sdp, "type": self.pcs[call_number]["pc"].localDescription.type}))
 			else:
@@ -576,6 +579,11 @@ class WebRtcServer(Process):
 					self.to_emitter.send({"type":"call-3-status","status":"closed-by-server"})
 				await self.stop_peer_connection(peer_connection["uid"])
 				return web.Response(content_type="application/json",text=json.dumps({"sdp": "", "type": ""}))
+
+	async def statistics(self,pc):
+		await asyncio.sleep(20)
+		print(await pc.getStats())
+		
 
 	async def stop_peer_connection(self,uid):
 		counter = 0
@@ -736,14 +744,14 @@ class WebRtcServer(Process):
 			self.output_stream.write(slice.raw_data)
 			self.chunk_number += 1
 
-	async def manage_call_end(self,loop,uid):
+	async def manage_call_end(self,uid):
 		for pc_call_number in self.pcs:
 			if self.pcs[pc_call_number]["uid"] == uid:
 				call_number = pc_call_number
 				break
 					
 		data_from_mother = self.call_queues[call_number-1]
-		asyncio.set_event_loop(loop)
+		#asyncio.set_event_loop(loop)
 		try:
 			while(self.pcs[call_number]["offer_in_progress"]):
 				qsize = data_from_mother.qsize()
