@@ -14,5 +14,5 @@ Requirements:
 
 Installation instructions:
 
-1. Install all the required modules using pip command: `pip install pyav PyQt5 aiohttp aiorct PyAudio pydub pillow pyngrok pygrabber`
+1. Install all the required modules using pip command: `pip install pyav PyQt5 aiohttp aiortc PyAudio pydub pillow pyngrok pygrabber`
 2. Create an account to ngrok tunel service (http://www.ngrok.com) and then visit https://dashboard.ngrok.com/get-started/your-authtoken to copy the authentication command.
