@@ -9,7 +9,7 @@ from calls import Ui_MainWindow
 from aiohttp import web
 from aiohttp.web_runner import GracefulExit
 from aiortc.mediastreams import MediaStreamTrack,MediaStreamError
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer
 from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRelay
 import av
 import pyaudio
@@ -479,13 +479,17 @@ class WebRtcServer(Process):
 				while not data_from_mother.empty():
 					data_from_mother.get()
 
-				self.pcs[call_number]["pc"] = RTCPeerConnection()
+				configuration = RTCConfiguration([RTCIceServer("stun:stun.l.google.com:19302")])
+				self.pcs[call_number]["pc"] = RTCPeerConnection(configuration)
 
 
 				@self.pcs[call_number]["pc"].on("connectionstatechange")
 				async def on_connectionstatechange():
-					if self.pcs[call_number]["pc"].connectionState == "failed":
-						await self.stop_peer_connection(peer_connection["uid"])
+					try:
+						if self.pcs[call_number]["pc"].connectionState == "failed":
+							await self.stop_peer_connection(peer_connection["uid"])
+					except:
+						pass
 
 				@self.pcs[call_number]["pc"].on("datachannel")
 				async def on_datachannel(channel):
