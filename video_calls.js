@@ -285,6 +285,7 @@ $(document).ready(function(){
 	$("#control_call_button").on( "click", function() {
 		name = $("#name").val();
 		surname = $("#surname").val();
+		$("#me-name").html(name+" "+surname)
 		closing = false;
 		controller = null;
 		start(name,surname);
